@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-8">
@@ -17,6 +19,9 @@ export default function Home() {
             set goals, and achieve tennis excellence through data-driven development.
           </p>
         </div>
+        <Link href="/about" className="text-blue-600 underline mb-4 inline-block">
+          Learn more about this project
+        </Link>
         <div className="text-sm text-gray-500">
           Built with Next.js, TypeScript, and Tailwind CSS
         </div>
