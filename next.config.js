@@ -1,10 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-  trailingSlash: true,
-  images: {
-    unoptimized: true
-  }
+  // Server-side rendering enabled for Railway deployment
+  // Removed output: 'export' to support next start command
 }
 
 module.exports = nextConfig
