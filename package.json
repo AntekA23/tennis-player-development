@@ -1,0 +1,40 @@
+{
+  "name": "tennis-player-development",
+  "version": "1.0.0",
+  "description": "A comprehensive platform for tennis player development and coaching",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AntekA23/tennis-player-development.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AntekA23/tennis-player-development/issues"
+  },
+  "homepage": "https://github.com/AntekA23/tennis-player-development#readme",
+  "dependencies": {
+    "next": "^15.4.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/node": "^24.1.0",
+    "@types/react": "^19.1.9",
+    "@types/react-dom": "^19.1.7",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.32.0",
+    "eslint-config-next": "^15.4.5",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.9.2"
+  }
+}
