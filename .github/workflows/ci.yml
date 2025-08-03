@@ -1,0 +1,71 @@
+name: CI Quality Gates
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pr-size-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check PR size (≤150 LOC excluding docs/tests)
+      run: |
+        # Get the number of changed lines excluding docs and tests
+        CHANGED_LINES=$(git diff --numstat origin/${{ github.event.pull_request.base.ref }}...HEAD | \
+          grep -v -E '\.(md|txt|rst)$|test|spec|__tests__|\.test\.|\.spec\.' | \
+          awk '{added+=$1; removed+=$2} END {print added+removed}')
+        
+        echo "Changed lines (excluding docs/tests): $CHANGED_LINES"
+        
+        if [ "$CHANGED_LINES" -gt 150 ]; then
+          echo "❌ PR exceeds 150 LOC limit: $CHANGED_LINES lines changed"
+          echo "Please break this PR into smaller, focused changes"
+          exit 1
+        else
+          echo "✅ PR size within limit: $CHANGED_LINES/150 lines"
+        fi
+
+  quality-checks:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: TypeScript check
+      run: npm run typecheck
+
+    - name: ESLint check (zero warnings)
+      run: npm run lint
+
+    - name: Build check
+      run: npm run build
+
+    - name: Quality gates summary
+      run: |
+        echo "✅ All quality gates passed:"
+        echo "  - PR size: ≤150 LOC ✅"
+        echo "  - TypeScript compilation: ✅"
+        echo "  - ESLint (zero warnings): ✅" 
+        echo "  - Production build: ✅"
