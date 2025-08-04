@@ -1,9 +1,52 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from "next/link";
 
+interface User {
+  email: string;
+  role: string;
+}
+
 export default function Home() {
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setUser(JSON.parse(userData));
+    } else {
+      router.push('/auth');
+    }
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    router.push('/auth');
+  };
+
+  if (!user) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-8">
       <div className="max-w-4xl mx-auto text-center">
+        <div className="mb-6 flex justify-between items-center">
+          <div className="text-left">
+            <p className="text-lg font-medium text-gray-800">Welcome {user.email}</p>
+            <p className="text-sm text-gray-600">Role: {user.role}</p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+          >
+            Logout
+          </button>
+        </div>
+        
         <h1 className="text-5xl font-bold text-gray-900 mb-6">
           Tennis Player Development
         </h1>
