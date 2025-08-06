@@ -4,7 +4,7 @@ import { teams, teamMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(request: Request) {
-  console.log('🎯 JOIN TEAM API CALLED');
+  console.log('🎯 JOIN TEAM API CALLED - CACHE BUST TEST');
   try {
     const { inviteCode, userId } = await request.json();
     console.log('📝 Data received:', { inviteCode, userId });

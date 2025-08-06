@@ -3,6 +3,7 @@ import { db } from '@/db';
 import { teams, teamMembers } from '@/db/schema';
 
 export async function POST(request: Request) {
+  console.log('🎯 CREATE TEAM API CALLED');
   try {
     const { teamName, userId } = await request.json();
 
