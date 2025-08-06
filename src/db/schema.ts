@@ -13,7 +13,7 @@ export const teams = pgTable("teams", {
   name: varchar("name", { length: 255 }).notNull(),
   created_by: integer("created_by").notNull().references(() => users.id),
   created_at: timestamp("created_at").notNull().defaultNow(),
-  invite_code: varchar("invite_code", { length: 32 }).unique(),
+  invite_code: varchar("invite_code", { length: 32 }),
 });
 
 export const teamMembers = pgTable("team_members", {

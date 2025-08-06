@@ -16,7 +16,10 @@
       "Bash(npx drizzle-kit:*)",
       "Bash(ls:*)",
       "Bash(mv:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(railway run:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npx railway run:*)"
     ],
     "deny": []
   }
