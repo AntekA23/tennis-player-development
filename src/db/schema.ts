@@ -1,4 +1,5 @@
 import { pgTable, serial, varchar, integer, timestamp } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -22,3 +23,13 @@ export const teamMembers = pgTable("team_members", {
   invited_by: integer("invited_by").notNull().references(() => users.id),
   status: varchar("status", { length: 32 }).notNull().default('pending'), // 'pending', 'accepted'
 });
+
+// Relations
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  team: one(teams, { fields: [teamMembers.team_id], references: [teams.id] }),
+  user: one(users, { fields: [teamMembers.user_id], references: [users.id] }),
+}));
+
+export const teamsRelations = relations(teams, ({ many }) => ({
+  members: many(teamMembers),
+}));

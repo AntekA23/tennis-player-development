@@ -25,6 +25,8 @@ export default function Home() {
         .then(data => {
           if (!data.hasTeam) {
             router.push('/onboarding');
+          } else {
+            router.push('/dashboard');
           }
         });
     } else {

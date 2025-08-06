@@ -34,7 +34,7 @@ export default function OnboardingPage() {
 
       if (response.ok) {
         console.log('Team created! Invite code:', data.inviteCode);
-        router.push('/');
+        router.push('/dashboard');
       } else {
         setError(data.error || 'Failed to create team');
       }
@@ -67,7 +67,7 @@ export default function OnboardingPage() {
       const data = await response.json();
 
       if (response.ok) {
-        router.push('/');
+        router.push('/dashboard');
       } else {
         setError(data.error || 'Invalid invite code');
       }
