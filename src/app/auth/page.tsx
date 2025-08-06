@@ -5,14 +5,7 @@ import { useRouter } from 'next/navigation';
 
 type UserRole = 'player' | 'parent' | 'coach';
 
-interface User {
-  email: string;
-  password: string;
-  role: UserRole;
-}
-
-// In-memory storage
-const users: User[] = [];
+// Removed in-memory storage - now using database
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -22,7 +15,7 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -33,24 +26,36 @@ export default function AuthPage() {
 
     if (isLogin) {
       // Login
-      const user = users.find(u => u.email === email && u.password === password);
-      if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('user', JSON.stringify(data));
         router.push('/');
       } else {
-        setError('Invalid email or password');
+        setError(data.error || 'Invalid email or password');
       }
     } else {
       // Signup
-      if (users.find(u => u.email === email)) {
-        setError('User already exists');
-        return;
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('user', JSON.stringify(data));
+        router.push('/');
+      } else {
+        setError(data.error || 'Failed to create account');
       }
-      
-      const newUser: User = { email, password, role };
-      users.push(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      router.push('/');
     }
   };
 
