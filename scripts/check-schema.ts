@@ -6,6 +6,15 @@ import { sql } from 'drizzle-orm';
 async function checkSchema() {
   console.log('🔍 Database Schema Validation');
   console.log('=============================\n');
+  
+  // Check if DATABASE_URL is available
+  if (!process.env.DATABASE_URL) {
+    console.log('⚠️  No DATABASE_URL found in environment');
+    console.log('💡 To run this script:');
+    console.log('   Local: Set up local Postgres or use Railway proxy');
+    console.log('   Railway: npx railway run tsx scripts/check-schema.ts');
+    console.log('   Manual: Copy Railway DB URL to .env.local as DATABASE_URL\n');
+  }
 
   try {
     // 1. Check teams table structure
@@ -85,6 +94,18 @@ async function checkSchema() {
     
   } catch (error) {
     console.error('❌ Schema validation failed:', error);
+    
+    if (error instanceof Error && error.message.includes('ECONNREFUSED')) {
+      console.log('\n💡 Connection Issues:');
+      console.log('   • Cannot connect to Railway database from local environment');
+      console.log('   • This is normal - Railway DB is not accessible locally');
+      console.log('   • To validate schema:');
+      console.log('     1. Use Railway UI to visually inspect tables');
+      console.log('     2. Run: npx railway run tsx scripts/check-schema.ts');
+      console.log('     3. Or test the deployed application end-to-end\n');
+      console.log('⚠️  IMPORTANT: Do not proceed with DB changes without visual verification!');
+    }
+    
     process.exit(1);
   }
 }

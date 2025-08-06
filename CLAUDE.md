@@ -32,6 +32,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Explain the risk** and proposed mitigation
 - **Wait for explicit approval** to continue
 
+## 🚨 MANDATORY PAUSE CONDITIONS (DB Focus)
+
+**Claude MUST stop and request evidence if ANY of these conditions are true:**
+
+### Missing Evidence:
+- [ ] No visual DB screenshot provided by user
+- [ ] Schema validation script fails to connect (normal for Railway)
+- [ ] No end-to-end feature test results provided
+- [ ] User has not confirmed feature works on live URL
+
+### Database Risks:
+- [ ] Migration command failed or returned errors
+- [ ] Cannot verify if existing data was preserved  
+- [ ] New columns/tables not confirmed to exist
+- [ ] Feature behavior doesn't match expected database changes
+
+**PAUSE MESSAGE TEMPLATE:**
+```
+🚨 STOPPING - Database Evidence Required
+
+I cannot proceed with further database-related changes until you provide:
+
+1. **Visual DB Screenshot** - Railway UI showing table structure
+2. **End-to-end Test** - Confirm feature works on live application  
+3. **Data Preservation** - Verify existing data was not lost
+4. **Schema Validation** - Run deployed app to test DB structure
+
+Please provide evidence before I continue with any database work.
+```
+
 **Guardrail violations that require STOP:**
 - PR would exceed 150 LOC
 - Quality gates (typecheck/lint/build) failing

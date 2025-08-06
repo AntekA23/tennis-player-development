@@ -54,10 +54,36 @@ npm run build      # Project must build successfully
 5. **Attach all evidence:** Screenshots, script output, and test results in PR
 
 ### Never merge until:
-- [ ] Schema validation script passes
+- [ ] Schema validation script passes (or connection issues documented)
 - [ ] Visual DB screenshot confirms structure matches code
 - [ ] Feature works end-to-end with real DB data
 - [ ] Migration is fully documented in `/docs/migrations/`
+
+## Final DB Validation Checklist
+
+**Before merging any database-affecting PR:**
+
+### 🔍 Schema Verification
+- [ ] **Script attempted**: `npx tsx scripts/check-schema.ts` (connection issues logged if any)
+- [ ] **Visual confirmation**: Screenshot of Railway UI showing table structure
+- [ ] **Code alignment**: Database structure matches schema definitions in code
+
+### 🧪 End-to-End Testing
+- [ ] **Feature test run**: UI → Database → UI flow tested on live deployment
+- [ ] **Data persistence**: New data properly stored and retrievable
+- [ ] **Error handling**: Edge cases and error scenarios tested
+
+### 📚 Documentation & Traceability  
+- [ ] **Migration logged**: Complete entry in `docs/migrations/YYYY-MM-DD-description.md`
+- [ ] **Evidence attached**: Screenshots, test results, script output included
+- [ ] **Rollback plan**: Recovery steps documented if needed
+
+### ✅ User Validation
+- [ ] **Product owner tested**: Feature confirmed working on Railway URL
+- [ ] **Requirements met**: Implementation matches original specifications
+- [ ] **No data loss**: Existing data preserved through migration
+
+**🚨 MERGE BLOCKER**: If ANY checkbox above is unchecked, PR cannot be merged.
 
 ## Evidence-Based Development
 
