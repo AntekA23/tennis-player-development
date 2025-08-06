@@ -7,6 +7,13 @@
 - [ ] Manual/automated evidence attached (screenshot, log, Notion link)
 - [ ] Product Owner (Bartek) validation
 
+## Database QA
+
+- [ ] DB migration was **applied** in the correct environment (local/production)
+- [ ] DB schema matches code (screenshot/log or migration summary attached)
+- [ ] New columns/tables present (TablePlus/SQL evidence attached)
+- [ ] Feature test shows DB values are as expected after use (screenshot/log)
+
 ## Evidence Required
 
 **Choose one:**

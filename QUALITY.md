@@ -39,6 +39,13 @@ npm run build      # Project must build successfully
 - **Clear quality gates**: Build + lint + typecheck = required
 - **Deploy validation**: Must work on Railway production URL
 
+## Database Discipline
+
+- Every PR that modifies DB schema must include:
+  - Manual verification that all migrations are applied in prod/dev DB
+  - Visual evidence (TablePlus screenshot or migration logs)
+  - Confirmation that features work end-to-end with real DB data
+
 ## Evidence-Based Development
 
 ### Red-First Approach

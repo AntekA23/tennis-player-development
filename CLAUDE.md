@@ -14,6 +14,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. **Evidence plan** - Define what "working" looks like before coding
 5. **Risk assessment** - If guardrails are at risk, STOP and request user validation
 
+## 🚨 MANDATORY SESSION START PROTOCOL (DB Focus)
+
+**For any code change that affects the database:**
+1. Explicitly confirm latest migration has been **applied** in the target environment.
+2. Manually check DB structure in TablePlus or via SQL to ensure all required columns/tables exist.
+3. STOP and request user validation if there is **any** mismatch between code and DB schema, or if any error occurs during DB operation.
+4. Add screenshots/logs of the DB schema and example data as evidence in PR.
+
 **If any discipline guardrail is at risk:**
 - **STOP immediately**
 - **Request user validation** before proceeding
