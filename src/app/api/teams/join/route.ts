@@ -13,17 +13,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invite code and user ID required' }, { status: 400 });
     }
 
-    // Parse team ID from invite code (format: TEAM{id}{timestamp})
-    const teamIdMatch = inviteCode.match(/^TEAM(\d+)/);
-    if (!teamIdMatch) {
-      return NextResponse.json({ error: 'Invalid invite code format' }, { status: 400 });
-    }
-
-    const teamId = parseInt(teamIdMatch[1]);
-
-    // Check if team exists
+    // Find team by exact invite code match
     const team = await db.query.teams.findFirst({
-      where: eq(teams.id, teamId),
+      where: eq(teams.invite_code, inviteCode),
     });
 
     if (!team) {
@@ -33,7 +25,7 @@ export async function POST(request: Request) {
     // Check if user is already a member
     const existingMember = await db.query.teamMembers.findFirst({
       where: (teamMembers, { and, eq }) => and(
-        eq(teamMembers.team_id, teamId),
+        eq(teamMembers.team_id, team.id),
         eq(teamMembers.user_id, userId)
       ),
     });
@@ -44,7 +36,7 @@ export async function POST(request: Request) {
 
     // Add user to team
     await db.insert(teamMembers).values({
-      team_id: teamId,
+      team_id: team.id,
       user_id: userId,
       role: 'member',
       invited_by: team.created_by,

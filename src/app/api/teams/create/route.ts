@@ -11,10 +11,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Team name and user ID required' }, { status: 400 });
     }
 
-    // Create team
+    // Generate unique invite code
+    const randomSuffix = Math.floor(100000 + Math.random() * 900000);
+    const inviteCode = `TEAM${randomSuffix}`;
+
+    // Create team with invite code
     const newTeam = await db.insert(teams).values({
       name: teamName,
       created_by: userId,
+      invite_code: inviteCode,
     }).returning();
 
     // Add creator as first member
@@ -26,8 +31,6 @@ export async function POST(request: Request) {
       status: 'accepted',
     });
 
-    // Generate simple invite code
-    const inviteCode = `TEAM${newTeam[0].id}${Date.now().toString().slice(-4)}`;
     console.log(`Team "${teamName}" created! Invite code: ${inviteCode}`);
 
     return NextResponse.json({ 

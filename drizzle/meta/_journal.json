@@ -15,6 +15,20 @@
       "when": 1754455275214,
       "tag": "0001_spicy_lenny_balinger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1754461851383,
+      "tag": "0002_wet_norrin_radd",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1754461991708,
+      "tag": "0003_absurd_hex",
+      "breakpoints": true
     }
   ]
 }
