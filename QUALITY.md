@@ -43,8 +43,21 @@ npm run build      # Project must build successfully
 
 - Every PR that modifies DB schema must include:
   - Manual verification that all migrations are applied in prod/dev DB
-  - Visual evidence (TablePlus screenshot or migration logs)
+  - Visual evidence (TablePlus screenshot or migration logs)  
   - Confirmation that features work end-to-end with real DB data
+
+### Mandatory DB Validation Steps
+1. **Run schema validation:** `npx tsx scripts/check-schema.ts`
+2. **Visual DB verification:** Screenshot actual table structure in Railway UI/TablePlus
+3. **End-to-end feature test:** Prove feature works with real database data
+4. **Migration traceability:** Document all steps in `docs/migrations/YYYY-MM-DD-description.md`
+5. **Attach all evidence:** Screenshots, script output, and test results in PR
+
+### Never merge until:
+- [ ] Schema validation script passes
+- [ ] Visual DB screenshot confirms structure matches code
+- [ ] Feature works end-to-end with real DB data
+- [ ] Migration is fully documented in `/docs/migrations/`
 
 ## Evidence-Based Development
 

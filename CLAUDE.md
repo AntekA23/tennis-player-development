@@ -21,6 +21,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. Manually check DB structure in TablePlus or via SQL to ensure all required columns/tables exist.
 3. STOP and request user validation if there is **any** mismatch between code and DB schema, or if any error occurs during DB operation.
 4. Add screenshots/logs of the DB schema and example data as evidence in PR.
+5. **Run schema validation script:** `npx tsx scripts/check-schema.ts` and include output
+6. **Visual DB verification:** Open Railway UI/TablePlus and screenshot the actual table structure
+7. **End-to-end feature test:** Prove the feature works with real DB data
+8. **Document in migration log:** Create entry in `docs/migrations/` with all steps and evidence
 
 **If any discipline guardrail is at risk:**
 - **STOP immediately**
