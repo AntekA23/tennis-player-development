@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
-import { db } from '../../../../db';
-import { teams, teamMembers } from '../../../../db/schema';
+import { db } from '@/db';
+import { teams, teamMembers } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(request: Request) {
+  console.log('🎯 JOIN TEAM API CALLED');
   try {
     const { inviteCode, userId } = await request.json();
+    console.log('📝 Data received:', { inviteCode, userId });
 
     if (!inviteCode || !userId) {
       return NextResponse.json({ error: 'Invite code and user ID required' }, { status: 400 });
