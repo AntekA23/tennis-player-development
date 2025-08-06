@@ -29,6 +29,13 @@
       "when": 1754461991708,
       "tag": "0003_absurd_hex",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1754467478787,
+      "tag": "0004_small_harrier",
+      "breakpoints": true
     }
   ]
 }

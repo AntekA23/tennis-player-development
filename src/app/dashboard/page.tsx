@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
+import CalendarView from '@/components/calendar/CalendarView';
+import CalendarEventForm from '@/components/calendar/CalendarEventForm';
 
 interface User {
   id: number;
@@ -30,6 +32,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [team, setTeam] = useState<Team | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showEventForm, setShowEventForm] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -106,11 +109,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="text-center p-4 bg-blue-50 rounded">
-            <p className="text-gray-600">
-              Team dashboard ready! Future features (calendar, progress tracking) will appear here.
-            </p>
-          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-lg p-8 mt-8">
+          <CalendarView />
         </div>
 
         <div className="text-center">
