@@ -16,7 +16,17 @@ export default function Home() {
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
-      setUser(JSON.parse(userData));
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+      
+      // Check if user has a team
+      fetch(`/api/teams/check?userId=${parsedUser.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.hasTeam) {
+            router.push('/onboarding');
+          }
+        });
     } else {
       router.push('/auth');
     }
