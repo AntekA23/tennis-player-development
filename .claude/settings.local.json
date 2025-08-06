@@ -13,7 +13,10 @@
       "Bash(npm run typecheck:*)",
       "Bash(npm run lint)",
       "Bash(npx husky init:*)",
-      "Bash(npx drizzle-kit:*)"
+      "Bash(npx drizzle-kit:*)",
+      "Bash(ls:*)",
+      "Bash(mv:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }
