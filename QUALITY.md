@@ -39,6 +39,44 @@ npm run build      # Project must build successfully
 - **Clear quality gates**: Build + lint + typecheck = required
 - **Deploy validation**: Must work on Railway production URL
 
+## Database Field Addition Discipline
+
+**CRITICAL: The #1 cause of production failures is missing/null fields after schema changes**
+
+### Before Adding Any Field:
+- [ ] Decide: Required (NOT NULL) or Optional (NULLABLE/DEFAULT)?
+- [ ] Plan backfill strategy for existing rows
+- [ ] Check all API endpoints that will read this field
+- [ ] Verify frontend can handle null/undefined gracefully
+
+### Field Addition Checklist:
+1. **Migration Development**
+   - Add field as NULLABLE initially (unless safe DEFAULT exists)
+   - Include backfill UPDATE for existing rows if required
+   - Only add NOT NULL constraint AFTER backfill completed
+
+2. **Pre-Deploy Verification**
+   ```sql
+   -- Check existing row count that needs backfill
+   SELECT COUNT(*) FROM table_name WHERE new_field IS NULL;
+   ```
+
+3. **API Safety Updates**
+   - Use null-coalescing: `field ?? defaultValue`
+   - Add validation for new required fields
+   - Update TypeScript types to reflect nullability
+
+4. **Post-Deploy Validation**
+   - Verify all rows have valid values
+   - Test with old data (pre-migration rows)
+   - Check logs for any null-related errors
+
+### Never Do This:
+- ❌ Add NOT NULL field without DEFAULT or backfill
+- ❌ Assume frontend will always send new field
+- ❌ Deploy schema changes without API updates
+- ❌ Skip testing with existing production data
+
 ## Database Discipline
 
 - Every PR that modifies DB schema must include:

@@ -17,14 +17,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚨 MANDATORY SESSION START PROTOCOL (DB Focus)
 
 **For any code change that affects the database:**
-1. Explicitly confirm latest migration has been **applied** in the target environment.
-2. Manually check DB structure in TablePlus or via SQL to ensure all required columns/tables exist.
-3. STOP and request user validation if there is **any** mismatch between code and DB schema, or if any error occurs during DB operation.
-4. Add screenshots/logs of the DB schema and example data as evidence in PR.
-5. **Run schema validation script:** `npx tsx scripts/check-schema.ts` and include output
-6. **Visual DB verification:** Open Railway UI/TablePlus and screenshot the actual table structure
-7. **End-to-end feature test:** Prove the feature works with real DB data
-8. **Document in migration log:** Create entry in `docs/migrations/` with all steps and evidence
+
+### Pre-Migration Checks:
+1. **Field Analysis** - List all new fields and their nullability
+2. **Backfill Plan** - Document how existing rows will be handled
+3. **API Review** - Verify all endpoints handle new fields safely
+
+### During Migration:
+1. Apply migration to test environment first
+2. Check for existing rows that need backfill:
+   ```sql
+   SELECT COUNT(*) FROM table WHERE new_field IS NULL;
+   ```
+3. Run backfill if needed before adding constraints
+4. Manually verify DB structure in TablePlus/Railway UI
+
+### Post-Migration Validation:
+1. **Visual DB verification** - Screenshot showing new fields with data
+2. **Null check** - Confirm no unexpected nulls in required fields
+3. **API test** - GET/POST/PUT all work with new schema
+4. **Old data test** - Verify pre-existing records still work
+5. **Document in migration log** - Complete entry with evidence
 
 **If any discipline guardrail is at risk:**
 - **STOP immediately**
@@ -47,6 +60,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - [ ] Cannot verify if existing data was preserved  
 - [ ] New columns/tables not confirmed to exist
 - [ ] Feature behavior doesn't match expected database changes
+
+### Field Addition Risks:
+- [ ] Adding NOT NULL field without DEFAULT value
+- [ ] No backfill strategy for existing rows
+- [ ] API endpoints not updated to handle new fields
+- [ ] Frontend crashes on null/undefined values
+- [ ] "column does not exist" errors in logs
 
 **PAUSE MESSAGE TEMPLATE:**
 ```

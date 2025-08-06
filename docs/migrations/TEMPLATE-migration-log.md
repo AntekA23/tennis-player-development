@@ -29,6 +29,21 @@ npx drizzle-kit push --force
 # Result: [✓] Changes applied
 ```
 
+## Field Addition Checklist (if adding new columns)
+
+### Pre-Migration Analysis:
+- [ ] **Field nullability decided** - Required (NOT NULL) or Optional (NULLABLE)?
+- [ ] **Default value defined** - What value for existing rows?
+- [ ] **Backfill strategy planned** - How to populate existing rows?
+- [ ] **API compatibility checked** - All endpoints handle null/undefined?
+
+### Backfill Verification:
+```sql
+-- Count of rows needing backfill
+SELECT COUNT(*) FROM table_name WHERE new_field IS NULL;
+-- Result: [number]
+```
+
 ## Validation Results ✅/❌
 
 ### Database Structure Verified:
