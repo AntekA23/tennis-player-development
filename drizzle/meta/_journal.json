@@ -36,6 +36,13 @@
       "when": 1754467478787,
       "tag": "0004_small_harrier",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1754485668445,
+      "tag": "0005_wide_whirlwind",
+      "breakpoints": true
     }
   ]
 }

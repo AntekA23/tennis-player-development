@@ -19,7 +19,8 @@
       "Bash(rm:*)",
       "Bash(railway run:*)",
       "Bash(npx tsx:*)",
-      "Bash(npx railway run:*)"
+      "Bash(npx railway run:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": []
   }

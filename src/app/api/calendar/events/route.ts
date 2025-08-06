@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, activity_type, start_time, end_time, location } = body;
+    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern } = body;
 
     if (!title || !activity_type || !start_time || !end_time) {
       return NextResponse.json(
@@ -85,6 +85,9 @@ export async function POST(request: NextRequest) {
       start_time: new Date(start_time),
       end_time: new Date(end_time),
       location: location || null,
+      is_recurring: is_recurring || false,
+      recurrence_pattern: recurrence_pattern || null,
+      original_event_id: null, // Will be set when cloning
     }).returning();
 
     return NextResponse.json({ event: newEvent }, { status: 201 });

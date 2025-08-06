@@ -83,6 +83,25 @@ export default function CalendarView() {
     }
   };
 
+  const handleCloneEvent = async (event: CalendarEvent) => {
+    try {
+      // Clone with same times for now (future: could prompt for new dates)
+      const response = await fetch(`/api/calendar/events/${event.id}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_time: event.start_time,
+          end_time: event.end_time,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to clone event");
+      fetchEvents();
+      alert("Event cloned successfully!");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to clone event");
+    }
+  };
+
   const getActivityColor = (type: CalendarEvent["activity_type"]) => {
     const colors = {
       practice: "bg-blue-100 text-blue-800",
@@ -164,6 +183,12 @@ export default function CalendarView() {
                   >
                     {event.activity_type}
                   </span>
+                  <button
+                    onClick={() => handleCloneEvent(event)}
+                    className="text-green-600 hover:text-green-800"
+                  >
+                    Clone
+                  </button>
                   <button
                     onClick={() => {
                       setEditingEvent(event);

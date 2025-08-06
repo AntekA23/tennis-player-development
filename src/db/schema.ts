@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, integer, timestamp, text, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, integer, timestamp, text, pgEnum, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -55,6 +55,9 @@ export const calendarEvents = pgTable("calendar_events", {
   start_time: timestamp("start_time", { withTimezone: true }).notNull(),
   end_time: timestamp("end_time", { withTimezone: true }).notNull(),
   location: varchar("location", { length: 255 }),
+  is_recurring: boolean("is_recurring").notNull().default(false),
+  recurrence_pattern: varchar("recurrence_pattern", { length: 32 }), // 'weekly', 'monthly', etc.
+  original_event_id: integer("original_event_id"), // self-reference for cloned events
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });
