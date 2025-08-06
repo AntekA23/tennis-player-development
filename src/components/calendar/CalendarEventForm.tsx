@@ -8,6 +8,18 @@ interface CalendarEventFormProps {
   initialData?: any;
 }
 
+// Helper function to convert ISO timestamp to datetime-local format
+const formatDatetimeLocal = (isoString: string) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export default function CalendarEventForm({
   onSubmit,
   onCancel,
@@ -17,8 +29,8 @@ export default function CalendarEventForm({
     title: initialData?.title || "",
     description: initialData?.description || "",
     activity_type: initialData?.activity_type || "practice",
-    start_time: initialData?.start_time || "",
-    end_time: initialData?.end_time || "",
+    start_time: formatDatetimeLocal(initialData?.start_time || ""),
+    end_time: formatDatetimeLocal(initialData?.end_time || ""),
     location: initialData?.location || "",
   });
 
