@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import CalendarEventForm from "./CalendarEventForm";
+import CalendarGridView from "./CalendarGridView";
+import CalendarListView from "./CalendarListView";
 
 interface CalendarEvent {
   id: number;
@@ -14,16 +16,62 @@ interface CalendarEvent {
   created_by: number;
 }
 
+// Mobile detection with usability check
+const isMobileDevice = () => {
+  if (typeof window === 'undefined') return { useList: false };
+  const width = window.innerWidth;
+  const touch = 'ontouchstart' in window;
+  
+  // If screen too small for useful calendar, force list
+  if (width < 500) return { useList: true, reason: 'screen_too_small' };
+  if (width < 768 && touch) return { useList: true, reason: 'mobile_touch' };
+  return { useList: false };
+};
+
 export default function CalendarView() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  
+  // View mode with mobile detection
+  const mobileCheck = isMobileDevice();
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>(() => {
+    if (typeof window === 'undefined') return 'calendar';
+    const saved = localStorage.getItem('calendarView') as 'calendar' | 'list';
+    return saved || (mobileCheck.useList ? 'list' : 'calendar');
+  });
+  
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEvents();
   }, []);
+
+  // Auto-switch to list if calendar becomes unusable on resize
+  useEffect(() => {
+    const checkUsability = () => {
+      const check = isMobileDevice();
+      if (check.useList && viewMode === 'calendar') {
+        setViewMode('list');
+        setMessage(`Switched to list view: better for mobile`);
+        setTimeout(() => setMessage(null), 3000);
+      }
+    };
+    
+    window.addEventListener('resize', checkUsability);
+    return () => window.removeEventListener('resize', checkUsability);
+  }, [viewMode]);
+
+  const handleViewChange = (view: 'calendar' | 'list') => {
+    setViewMode(view);
+    localStorage.setItem('calendarView', view);
+    setMessage(null);
+    
+    // Analytics tracking for future decisions
+    console.log(`[Analytics] View selected: ${view}, Mobile: ${isMobileDevice().useList}`);
+  };
 
   const fetchEvents = async () => {
     try {
@@ -102,6 +150,30 @@ export default function CalendarView() {
     }
   };
 
+  // Handle calendar date/time selection
+  const handleSelectSlot = (slotInfo: any) => {
+    const defaultDuration = 2; // hours
+    const endTime = new Date(slotInfo.start.getTime() + defaultDuration * 60 * 60 * 1000);
+    
+    setEditingEvent({
+      id: 0,
+      title: '',
+      description: '',
+      activity_type: 'practice',
+      start_time: slotInfo.start.toISOString(),
+      end_time: endTime.toISOString(),
+      location: '',
+      created_by: 0
+    });
+    setShowForm(true);
+  };
+
+  // Handle calendar event click
+  const handleSelectEvent = (event: any) => {
+    setEditingEvent(event.resource);
+    setShowForm(true);
+  };
+
   const getActivityColor = (type: CalendarEvent["activity_type"]) => {
     const colors = {
       practice: "bg-blue-100 text-blue-800",
@@ -129,18 +201,53 @@ export default function CalendarView() {
 
   return (
     <div className="p-4">
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold">Team Calendar</h2>
-        <button
-          onClick={() => {
-            setEditingEvent(null);
-            setShowForm(true);
-          }}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Add Event
-        </button>
+        
+        <div className="flex items-center gap-4">
+          {/* View Toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => handleViewChange('calendar')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'calendar' 
+                  ? 'bg-white shadow text-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📅 Calendar
+            </button>
+            <button
+              onClick={() => handleViewChange('list')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list' 
+                  ? 'bg-white shadow text-blue-600' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📋 List
+            </button>
+          </div>
+          
+          {/* Add Event Button */}
+          <button
+            onClick={() => {
+              setEditingEvent(null);
+              setShowForm(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Add Event
+          </button>
+        </div>
       </div>
+
+      {/* Message Display */}
+      {message && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-md">
+          {message}
+        </div>
+      )}
 
       {showForm && (
         <CalendarEventForm
@@ -153,62 +260,29 @@ export default function CalendarView() {
         />
       )}
 
-      {events.length === 0 ? (
-        <div className="text-gray-500 text-center py-8">
-          No events scheduled. Create your first team event!
-        </div>
+      {/* Render appropriate view */}
+      {viewMode === 'calendar' ? (
+        <CalendarGridView
+          events={events}
+          loading={loading}
+          onSelectEvent={handleSelectEvent}
+          onSelectSlot={handleSelectSlot}
+        />
       ) : (
-        <div className="space-y-4">
-          {events.map((event) => (
-            <div
-              key={event.id}
-              className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-lg">{event.title}</h3>
-                  {event.description && (
-                    <p className="text-gray-600 mt-1">{event.description}</p>
-                  )}
-                  <div className="mt-2 space-y-1 text-sm text-gray-500">
-                    <div>📅 {formatDateTime(event.start_time)} - {formatDateTime(event.end_time)}</div>
-                    {event.location && <div>📍 {event.location}</div>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${getActivityColor(
-                      event.activity_type
-                    )}`}
-                  >
-                    {event.activity_type}
-                  </span>
-                  <button
-                    onClick={() => handleCloneEvent(event)}
-                    className="text-green-600 hover:text-green-800"
-                  >
-                    Clone
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingEvent(event);
-                      setShowForm(true);
-                    }}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteEvent(event.id)}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <CalendarListView
+          events={events}
+          loading={loading}
+          onEditEvent={(event) => {
+            setEditingEvent(event);
+            setShowForm(true);
+          }}
+          onDeleteEvent={handleDeleteEvent}
+          onCloneEvent={handleCloneEvent}
+          onCreateEvent={() => {
+            setEditingEvent(null);
+            setShowForm(true);
+          }}
+        />
       )}
     </div>
   );
