@@ -12,17 +12,22 @@ export async function POST(request: Request) {
     }
 
     // Parse team ID from invite code (format: TEAM{id}{timestamp})
+    console.log('Join team debug - invite code:', inviteCode);
     const teamIdMatch = inviteCode.match(/^TEAM(\d+)/);
+    console.log('Regex match result:', teamIdMatch);
+    
     if (!teamIdMatch) {
       return NextResponse.json({ error: 'Invalid invite code format' }, { status: 400 });
     }
 
     const teamId = parseInt(teamIdMatch[1]);
+    console.log('Parsed team ID:', teamId);
 
     // Check if team exists
     const team = await db.query.teams.findFirst({
       where: eq(teams.id, teamId),
     });
+    console.log('Team found:', team);
 
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
