@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import CalendarEventForm from "./CalendarEventForm";
 import CalendarGridView from "./CalendarGridView";
 import CalendarListView from "./CalendarListView";
+import MobileCoachView from "./MobileCoachView";
+import RescheduleModal from "./RescheduleModal";
 
 interface CalendarEvent {
   id: number;
@@ -16,16 +18,28 @@ interface CalendarEvent {
   created_by: number;
 }
 
-// Mobile detection with usability check
+// Enhanced mobile detection for coach-first experience
 const isMobileDevice = () => {
-  if (typeof window === 'undefined') return { useList: false };
-  const width = window.innerWidth;
-  const touch = 'ontouchstart' in window;
+  if (typeof window === 'undefined') return { isMobile: false, forceList: false };
   
-  // If screen too small for useful calendar, force list
-  if (width < 500) return { useList: true, reason: 'screen_too_small' };
-  if (width < 768 && touch) return { useList: true, reason: 'mobile_touch' };
-  return { useList: false };
+  const width = window.innerWidth;
+  const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const userAgent = navigator.userAgent.toLowerCase();
+  const isMobileUA = /iphone|ipod|android|blackberry|windows phone/.test(userAgent);
+  const isTablet = /ipad|android(?!.*mobile)|tablet/.test(userAgent);
+  
+  // Phone: Always use list view (coaches on court)
+  if (width < 768 && (touch || isMobileUA)) {
+    return { isMobile: true, forceList: true, device: 'phone' };
+  }
+  
+  // Small tablet portrait: Prefer list but allow switching
+  if (width < 1024 && isTablet) {
+    return { isMobile: true, forceList: false, device: 'tablet' };
+  }
+  
+  // Desktop or large tablet: Calendar view optimal
+  return { isMobile: false, forceList: false, device: 'desktop' };
 };
 
 export default function CalendarView() {
@@ -34,13 +48,22 @@ export default function CalendarView() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [reschedulingEvent, setReschedulingEvent] = useState<CalendarEvent | null>(null);
   
-  // View mode with mobile detection
-  const mobileCheck = isMobileDevice();
+  // View mode with coach-first mobile detection
+  const deviceInfo = isMobileDevice();
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>(() => {
-    if (typeof window === 'undefined') return 'calendar';
+    if (typeof window === 'undefined') return 'list';
+    
+    // On phones, always default to list (coaches on court)
+    if (deviceInfo.forceList) return 'list';
+    
+    // Otherwise check saved preference
     const saved = localStorage.getItem('calendarView') as 'calendar' | 'list';
-    return saved || (mobileCheck.useList ? 'list' : 'calendar');
+    if (saved) return saved;
+    
+    // Default: list for mobile, calendar for desktop
+    return deviceInfo.isMobile ? 'list' : 'calendar';
   });
   
   const [message, setMessage] = useState<string | null>(null);
@@ -49,28 +72,40 @@ export default function CalendarView() {
     fetchEvents();
   }, []);
 
-  // Auto-switch to list if calendar becomes unusable on resize
+  // Auto-switch to list on phones, warn on tablets
   useEffect(() => {
     const checkUsability = () => {
       const check = isMobileDevice();
-      if (check.useList && viewMode === 'calendar') {
+      
+      // Force list view on phones
+      if (check.forceList && viewMode === 'calendar') {
         setViewMode('list');
-        setMessage(`Switched to list view: better for mobile`);
+        setMessage('📱 List view optimized for mobile coaching');
         setTimeout(() => setMessage(null), 3000);
       }
     };
     
     window.addEventListener('resize', checkUsability);
+    checkUsability(); // Check on mount
     return () => window.removeEventListener('resize', checkUsability);
   }, [viewMode]);
 
   const handleViewChange = (view: 'calendar' | 'list') => {
+    const device = isMobileDevice();
+    
+    // Warn if selecting calendar on phone
+    if (view === 'calendar' && device.forceList) {
+      setMessage('📱 Calendar view not optimized for phones - use List view');
+      setTimeout(() => setMessage(null), 4000);
+      return; // Don't switch
+    }
+    
     setViewMode(view);
     localStorage.setItem('calendarView', view);
     setMessage(null);
     
-    // Analytics tracking for future decisions
-    console.log(`[Analytics] View selected: ${view}, Mobile: ${isMobileDevice().useList}`);
+    // Analytics tracking
+    console.log(`[Analytics] View: ${view}, Device: ${device.device}`);
   };
 
   const fetchEvents = async () => {
@@ -150,6 +185,34 @@ export default function CalendarView() {
     }
   };
 
+  // Handle mobile reschedule with optimized modal
+  const handleRescheduleEvent = (event: CalendarEvent) => {
+    setReschedulingEvent(event);
+  };
+
+  const handleRescheduleSubmit = async (data: { start_time: string; end_time: string }) => {
+    if (!reschedulingEvent) return;
+    
+    try {
+      const response = await fetch(`/api/calendar/events/${reschedulingEvent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...reschedulingEvent,
+          start_time: data.start_time,
+          end_time: data.end_time,
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to reschedule event");
+      setReschedulingEvent(null);
+      fetchEvents();
+      setMessage('✅ Event rescheduled successfully');
+      setTimeout(() => setMessage(null), 3000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to reschedule event");
+    }
+  };
+
   // Handle calendar date/time selection
   const handleSelectSlot = (slotInfo: any) => {
     const defaultDuration = 2; // hours
@@ -204,30 +267,32 @@ export default function CalendarView() {
       <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold">Team Calendar</h2>
         
-        <div className="flex items-center gap-4">
-          {/* View Toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => handleViewChange('calendar')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'calendar' 
-                  ? 'bg-white shadow text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              📅 Calendar
-            </button>
-            <button
-              onClick={() => handleViewChange('list')}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'list' 
-                  ? 'bg-white shadow text-blue-600' 
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              📋 List
-            </button>
-          </div>
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* View Toggle - Hide calendar option on phones */}
+          {!deviceInfo.forceList && (
+            <div className="flex bg-gray-100 rounded-lg p-1">
+              <button
+                onClick={() => handleViewChange('calendar')}
+                className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'calendar' 
+                    ? 'bg-white shadow text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                📅 Calendar
+              </button>
+              <button
+                onClick={() => handleViewChange('list')}
+                className={`px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'list' 
+                    ? 'bg-white shadow text-blue-600' 
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                📋 List
+              </button>
+            </div>
+          )}
           
           {/* Add Event Button */}
           <button
@@ -260,7 +325,15 @@ export default function CalendarView() {
         />
       )}
 
-      {/* Render appropriate view */}
+      {reschedulingEvent && (
+        <RescheduleModal
+          event={reschedulingEvent}
+          onSubmit={handleRescheduleSubmit}
+          onCancel={() => setReschedulingEvent(null)}
+        />
+      )}
+
+      {/* Render appropriate view based on device and selection */}
       {viewMode === 'calendar' ? (
         <CalendarGridView
           events={events}
@@ -269,20 +342,39 @@ export default function CalendarView() {
           onSelectSlot={handleSelectSlot}
         />
       ) : (
-        <CalendarListView
-          events={events}
-          loading={loading}
-          onEditEvent={(event) => {
-            setEditingEvent(event);
-            setShowForm(true);
-          }}
-          onDeleteEvent={handleDeleteEvent}
-          onCloneEvent={handleCloneEvent}
-          onCreateEvent={() => {
-            setEditingEvent(null);
-            setShowForm(true);
-          }}
-        />
+        // Use mobile-optimized view for phones, standard list for tablets/desktop
+        deviceInfo.isMobile && deviceInfo.device === 'phone' ? (
+          <MobileCoachView
+            events={events}
+            loading={loading}
+            onEditEvent={(event) => {
+              setEditingEvent(event);
+              setShowForm(true);
+            }}
+            onDeleteEvent={handleDeleteEvent}
+            onCloneEvent={handleCloneEvent}
+            onRescheduleEvent={handleRescheduleEvent}
+            onCreateEvent={() => {
+              setEditingEvent(null);
+              setShowForm(true);
+            }}
+          />
+        ) : (
+          <CalendarListView
+            events={events}
+            loading={loading}
+            onEditEvent={(event) => {
+              setEditingEvent(event);
+              setShowForm(true);
+            }}
+            onDeleteEvent={handleDeleteEvent}
+            onCloneEvent={handleCloneEvent}
+            onCreateEvent={() => {
+              setEditingEvent(null);
+              setShowForm(true);
+            }}
+          />
+        )
       )}
     </div>
   );
