@@ -17,10 +17,10 @@ interface MobileEventCardProps {
   event: CalendarEvent;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  onReschedule: () => void;
-  onClone: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onReschedule?: () => void;
+  onClone?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 // Utility functions - kept inline for component isolation
@@ -96,49 +96,63 @@ export default function MobileEventCard({
           )}
           
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onReschedule();
-              }}
-              className="bg-blue-100 text-blue-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
-            >
-              <span>📅</span>
-              Reschedule
-            </button>
+            {onReschedule && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReschedule();
+                }}
+                className="bg-blue-100 text-blue-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                <span>📅</span>
+                Reschedule
+              </button>
+            )}
             
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onClone();
-              }}
-              className="bg-green-100 text-green-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
-            >
-              <span>📋</span>
-              Clone
-            </button>
+            {onClone && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClone();
+                }}
+                className="bg-green-100 text-green-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                <span>📋</span>
+                Clone
+              </button>
+            )}
             
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="bg-gray-100 text-gray-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
-            >
-              <span>✏️</span>
-              Edit
-            </button>
+            {onEdit && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                className="bg-gray-100 text-gray-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                <span>✏️</span>
+                Edit
+              </button>
+            )}
             
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              className="bg-red-100 text-red-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
-            >
-              <span>🗑️</span>
-              Delete
-            </button>
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                className="bg-red-100 text-red-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                <span>🗑️</span>
+                Delete
+              </button>
+            )}
+            
+            {!onReschedule && !onClone && !onEdit && !onDelete && (
+              <div className="col-span-2 text-center text-gray-500 p-3">
+                View-only schedule
+              </div>
+            )}
           </div>
         </div>
       )}

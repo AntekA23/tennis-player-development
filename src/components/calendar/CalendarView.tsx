@@ -6,6 +6,7 @@ import CalendarGridView from "./CalendarGridView";
 import CalendarListView from "./CalendarListView";
 import MobileCoachView from "./MobileCoachView";
 import RescheduleModal from "./RescheduleModal";
+import { useRoleAccess } from "@/contexts/UserContext";
 
 interface CalendarEvent {
   id: number;
@@ -49,6 +50,16 @@ export default function CalendarView() {
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [reschedulingEvent, setReschedulingEvent] = useState<CalendarEvent | null>(null);
+  
+  // Get user role and permissions
+  const { 
+    isCoach, 
+    isParent, 
+    isPlayer, 
+    showCreateButton, 
+    showEditControls,
+    canModifyEvent 
+  } = useRoleAccess();
   
   // View mode with coach-first mobile detection
   const deviceInfo = isMobileDevice();
@@ -265,11 +276,23 @@ export default function CalendarView() {
   return (
     <div className="p-4">
       <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold">Team Calendar</h2>
+        <div>
+          <h2 className="text-2xl font-bold">
+            {isCoach && "Team Calendar"}
+            {isParent && "📅 My Child's Schedule"}
+            {isPlayer && "📅 My Tennis Schedule"}
+          </h2>
+          {(isParent || isPlayer) && (
+            <p className="text-sm text-gray-600 mt-1">
+              {isParent && "View-only schedule with RSVP options"}
+              {isPlayer && "Your personal training and match schedule"}
+            </p>
+          )}
+        </div>
         
         <div className="flex items-center gap-2 sm:gap-4">
-          {/* View Toggle - Hide calendar option on phones */}
-          {!deviceInfo.forceList && (
+          {/* View Toggle - Hide calendar option on phones, show only for coaches and tablets+ */}
+          {!deviceInfo.forceList && isCoach && (
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => handleViewChange('calendar')}
@@ -294,16 +317,42 @@ export default function CalendarView() {
             </div>
           )}
           
-          {/* Add Event Button */}
-          <button
-            onClick={() => {
-              setEditingEvent(null);
-              setShowForm(true);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Add Event
-          </button>
+          {/* Role-based action buttons */}
+          {showCreateButton && isCoach && (
+            <button
+              onClick={() => {
+                setEditingEvent(null);
+                setShowForm(true);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Add Event
+            </button>
+          )}
+          
+          {isParent && (
+            <button
+              onClick={() => {
+                // TODO: Open parent request form
+                alert("Parent request system coming soon!");
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Request Time
+            </button>
+          )}
+          
+          {isPlayer && (
+            <button
+              onClick={() => {
+                // TODO: Open sparring request form
+                alert("Sparring request system coming soon!");
+              }}
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+            >
+              Request Sparring
+            </button>
+          )}
         </div>
       </div>
 
@@ -334,7 +383,7 @@ export default function CalendarView() {
       )}
 
       {/* Render appropriate view based on device and selection */}
-      {viewMode === 'calendar' ? (
+      {viewMode === 'calendar' && isCoach ? (
         <CalendarGridView
           events={events}
           loading={loading}
@@ -347,32 +396,33 @@ export default function CalendarView() {
           <MobileCoachView
             events={events}
             loading={loading}
-            onEditEvent={(event) => {
+            onEditEvent={showEditControls ? (event) => {
               setEditingEvent(event);
               setShowForm(true);
-            }}
-            onDeleteEvent={handleDeleteEvent}
-            onCloneEvent={handleCloneEvent}
-            onRescheduleEvent={handleRescheduleEvent}
-            onCreateEvent={() => {
+            } : undefined}
+            onDeleteEvent={showEditControls ? handleDeleteEvent : undefined}
+            onCloneEvent={showEditControls ? handleCloneEvent : undefined}
+            onRescheduleEvent={showEditControls ? handleRescheduleEvent : undefined}
+            onCreateEvent={showCreateButton ? () => {
               setEditingEvent(null);
               setShowForm(true);
-            }}
+            } : undefined}
+            userRole={isCoach ? 'coach' : isParent ? 'parent' : 'player'}
           />
         ) : (
           <CalendarListView
             events={events}
             loading={loading}
-            onEditEvent={(event) => {
+            onEditEvent={showEditControls ? (event) => {
               setEditingEvent(event);
               setShowForm(true);
-            }}
-            onDeleteEvent={handleDeleteEvent}
-            onCloneEvent={handleCloneEvent}
-            onCreateEvent={() => {
+            } : undefined}
+            onDeleteEvent={showEditControls ? handleDeleteEvent : undefined}
+            onCloneEvent={showEditControls ? handleCloneEvent : undefined}
+            onCreateEvent={showCreateButton ? () => {
               setEditingEvent(null);
               setShowForm(true);
-            }}
+            } : undefined}
           />
         )
       )}

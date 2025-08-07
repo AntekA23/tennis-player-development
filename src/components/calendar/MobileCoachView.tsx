@@ -18,11 +18,12 @@ interface CalendarEvent {
 interface MobileCoachViewProps {
   events: CalendarEvent[];
   loading: boolean;
-  onEditEvent: (event: CalendarEvent) => void;
-  onDeleteEvent: (id: number) => void;
-  onCloneEvent: (event: CalendarEvent) => void;
-  onCreateEvent: () => void;
-  onRescheduleEvent: (event: CalendarEvent) => void;
+  onEditEvent?: (event: CalendarEvent) => void;
+  onDeleteEvent?: (id: number) => void;
+  onCloneEvent?: (event: CalendarEvent) => void;
+  onCreateEvent?: () => void;
+  onRescheduleEvent?: (event: CalendarEvent) => void;
+  userRole?: 'coach' | 'parent' | 'player';
 }
 
 const formatDate = (dateString: string) => {
@@ -70,6 +71,7 @@ export default function MobileCoachView({
   onCloneEvent,
   onCreateEvent,
   onRescheduleEvent,
+  userRole = 'coach',
 }: MobileCoachViewProps) {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -176,10 +178,10 @@ export default function MobileCoachView({
                   event={event}
                   isExpanded={expandedCard === event.id}
                   onToggleExpand={() => setExpandedCard(expandedCard === event.id ? null : event.id)}
-                  onReschedule={() => onRescheduleEvent(event)}
-                  onClone={() => onCloneEvent(event)}
-                  onEdit={() => onEditEvent(event)}
-                  onDelete={() => onDeleteEvent(event.id)}
+                  onReschedule={onRescheduleEvent ? () => onRescheduleEvent(event) : undefined}
+                  onClone={onCloneEvent ? () => onCloneEvent(event) : undefined}
+                  onEdit={onEditEvent ? () => onEditEvent(event) : undefined}
+                  onDelete={onDeleteEvent ? () => onDeleteEvent(event.id) : undefined}
                 />
               ))}
             </div>

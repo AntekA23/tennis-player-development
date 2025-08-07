@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { calendarEvents } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { canCreateEvent, type ActivityType } from "@/lib/permissions";
 
 export async function POST(
   request: NextRequest,
@@ -38,6 +39,15 @@ export async function POST(
       return NextResponse.json(
         { error: "Event not found" },
         { status: 404 }
+      );
+    }
+
+    // Check if user has permission to create this type of event (cloning is creating)
+    const createPermission = await canCreateEvent(userId, teamId, originalEvent.activity_type as ActivityType);
+    if (!createPermission.allowed) {
+      return NextResponse.json(
+        { error: createPermission.reason || "Not authorized to clone this event type" },
+        { status: 403 }
       );
     }
 

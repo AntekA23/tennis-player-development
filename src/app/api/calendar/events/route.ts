@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { calendarEvents } from "@/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { canCreateEvent, getVisibleEvents, type ActivityType } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,19 +22,13 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get("start");
     const endDate = searchParams.get("end");
 
-    const conditions = [eq(calendarEvents.team_id, parseInt(teamId))];
-    
-    if (startDate) {
-      conditions.push(gte(calendarEvents.start_time, new Date(startDate)));
-    }
-    if (endDate) {
-      conditions.push(lte(calendarEvents.end_time, new Date(endDate)));
-    }
-
-    const events = await db
-      .select()
-      .from(calendarEvents)
-      .where(and(...conditions));
+    // Use role-based event filtering
+    const events = await getVisibleEvents(
+      userId,
+      teamId,
+      startDate ? new Date(startDate) : undefined,
+      endDate ? new Date(endDate) : undefined
+    );
 
     return NextResponse.json({ events });
   } catch (error) {
@@ -68,7 +63,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validActivityTypes = ['practice', 'gym', 'match', 'tournament', 'education'];
+    // Check role-based creation permission
+    const createPermission = await canCreateEvent(userId, teamId, activity_type as ActivityType);
+    if (!createPermission.allowed) {
+      return NextResponse.json(
+        { error: createPermission.reason || "Not authorized to create this event type" },
+        { status: 403 }
+      );
+    }
+
+    const validActivityTypes = ['practice', 'gym', 'match', 'tournament', 'education', 'sparring_request'];
     if (!validActivityTypes.includes(activity_type)) {
       return NextResponse.json(
         { error: "Invalid activity type" },

@@ -16,10 +16,10 @@ interface CalendarEvent {
 interface CalendarListViewProps {
   events: CalendarEvent[];
   loading: boolean;
-  onEditEvent: (event: CalendarEvent) => void;
-  onDeleteEvent: (id: number) => void;
-  onCloneEvent: (event: CalendarEvent) => void;
-  onCreateEvent: () => void;
+  onEditEvent?: (event: CalendarEvent) => void;
+  onDeleteEvent?: (id: number) => void;
+  onCloneEvent?: (event: CalendarEvent) => void;
+  onCreateEvent?: () => void;
 }
 
 const getActivityColor = (type: CalendarEvent["activity_type"]) => {
@@ -45,17 +45,21 @@ const formatDateTime = (dateString: string) => {
 };
 
 // Empty state for list view
-const EmptyList = ({ onCreateEvent }: { onCreateEvent: () => void }) => (
+const EmptyList = ({ onCreateEvent }: { onCreateEvent?: () => void }) => (
   <div className="text-gray-500 text-center py-8">
     <div className="text-4xl mb-4">📋</div>
     <h3 className="text-lg font-semibold mb-2">No events scheduled</h3>
-    <p className="mb-4">Create your first team event to get started!</p>
-    <button 
-      onClick={onCreateEvent}
-      className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
-    >
-      Create First Event
-    </button>
+    <p className="mb-4">
+      {onCreateEvent ? "Create your first team event to get started!" : "No events to display"}
+    </p>
+    {onCreateEvent && (
+      <button 
+        onClick={onCreateEvent}
+        className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+      >
+        Create First Event
+      </button>
+    )}
   </div>
 );
 
@@ -106,27 +110,33 @@ export default function CalendarListView({
               >
                 {event.activity_type}
               </span>
-              <button
-                onClick={() => onCloneEvent(event)}
-                className="text-green-600 hover:text-green-800 text-sm"
-                title="Clone event"
-              >
-                Clone
-              </button>
-              <button
-                onClick={() => onEditEvent(event)}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-                title="Edit event"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => onDeleteEvent(event.id)}
-                className="text-red-600 hover:text-red-800 text-sm"
-                title="Delete event"
-              >
-                Delete
-              </button>
+              {onCloneEvent && (
+                <button
+                  onClick={() => onCloneEvent(event)}
+                  className="text-green-600 hover:text-green-800 text-sm"
+                  title="Clone event"
+                >
+                  Clone
+                </button>
+              )}
+              {onEditEvent && (
+                <button
+                  onClick={() => onEditEvent(event)}
+                  className="text-blue-600 hover:text-blue-800 text-sm"
+                  title="Edit event"
+                >
+                  Edit
+                </button>
+              )}
+              {onDeleteEvent && (
+                <button
+                  onClick={() => onDeleteEvent(event.id)}
+                  className="text-red-600 hover:text-red-800 text-sm"
+                  title="Delete event"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>

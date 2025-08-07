@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { calendarEvents } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { canModifyEvent } from "@/lib/permissions";
 
 export async function PUT(
   request: NextRequest,
@@ -23,6 +24,15 @@ export async function PUT(
     const { id } = await params;
     const eventId = parseInt(id);
 
+    // Check role-based modification permission
+    const modifyPermission = await canModifyEvent(userId, eventId, 'edit');
+    if (!modifyPermission.allowed) {
+      return NextResponse.json(
+        { error: modifyPermission.reason || "Not authorized to edit this event" },
+        { status: 403 }
+      );
+    }
+
     const [existingEvent] = await db
       .select()
       .from(calendarEvents)
@@ -37,13 +47,6 @@ export async function PUT(
       return NextResponse.json(
         { error: "Event not found" },
         { status: 404 }
-      );
-    }
-
-    if (existingEvent.created_by !== parseInt(userId)) {
-      return NextResponse.json(
-        { error: "Not authorized to edit this event" },
-        { status: 403 }
       );
     }
 
@@ -103,6 +106,15 @@ export async function DELETE(
     const { id } = await params;
     const eventId = parseInt(id);
 
+    // Check role-based modification permission
+    const modifyPermission = await canModifyEvent(userId, eventId, 'delete');
+    if (!modifyPermission.allowed) {
+      return NextResponse.json(
+        { error: modifyPermission.reason || "Not authorized to delete this event" },
+        { status: 403 }
+      );
+    }
+
     const [existingEvent] = await db
       .select()
       .from(calendarEvents)
@@ -117,13 +129,6 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Event not found" },
         { status: 404 }
-      );
-    }
-
-    if (existingEvent.created_by !== parseInt(userId)) {
-      return NextResponse.json(
-        { error: "Not authorized to delete this event" },
-        { status: 403 }
       );
     }
 
