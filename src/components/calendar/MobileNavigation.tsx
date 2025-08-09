@@ -11,6 +11,10 @@ interface MobileNavigationProps {
   onFilterChange: (filters: string[]) => void;
   weekStart: Date;
   weekEnd: Date;
+  userRole?: 'coach' | 'parent' | 'player';
+  selectedPlayer?: number | null;
+  onPlayerFilterChange?: (playerId: number | null) => void;
+  teamPlayers?: Array<{id: number; name: string}>;
 }
 
 const getActivityEmoji = (type: string) => {
@@ -20,8 +24,21 @@ const getActivityEmoji = (type: string) => {
     match: "🏆",
     tournament: "🏅",
     education: "📚",
+    sparring_request: "⚔️",
   };
   return emojis[type];
+};
+
+const getActivityLabel = (type: string) => {
+  const labels: { [key: string]: string } = {
+    practice: "Practice",
+    gym: "Gym",
+    match: "Match",
+    tournament: "Tournament",
+    education: "Education",
+    sparring_request: "Sparring",
+  };
+  return labels[type] || type;
 };
 
 export default function MobileNavigation({
@@ -33,6 +50,10 @@ export default function MobileNavigation({
   onFilterChange,
   weekStart,
   weekEnd,
+  userRole = 'player',
+  selectedPlayer,
+  onPlayerFilterChange,
+  teamPlayers = [],
 }: MobileNavigationProps) {
   const toggleFilter = (type: string) => {
     const newFilters = activeFilters.includes(type) 
@@ -113,7 +134,7 @@ export default function MobileNavigation({
           All Events
         </button>
         
-        {(['practice', 'gym', 'match', 'tournament', 'education'] as const).map(type => (
+        {(['practice', 'gym', 'match', 'tournament', 'education', 'sparring_request'] as const).map(type => (
           <button
             key={type}
             onClick={() => toggleFilter(type)}
@@ -124,10 +145,31 @@ export default function MobileNavigation({
             }`}
           >
             <span>{getActivityEmoji(type)}</span>
-            <span className="capitalize">{type}</span>
+            <span>{getActivityLabel(type)}</span>
           </button>
         ))}
       </div>
+
+      {/* Player Filter for Coaches */}
+      {userRole === 'coach' && teamPlayers.length > 0 && onPlayerFilterChange && (
+        <div className="mt-3">
+          <label className="block text-xs font-medium text-gray-600 mb-2">
+            Filter by Player
+          </label>
+          <select
+            value={selectedPlayer || ''}
+            onChange={(e) => onPlayerFilterChange(e.target.value ? parseInt(e.target.value) : null)}
+            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Players</option>
+            {teamPlayers.map(player => (
+              <option key={player.id} value={player.id}>
+                {player.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }

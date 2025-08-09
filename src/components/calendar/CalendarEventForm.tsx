@@ -77,6 +77,7 @@ export default function CalendarEventForm({
           <option value="match">Match</option>
           <option value="tournament">Tournament</option>
           <option value="education">Education</option>
+          <option value="sparring_request">Sparring Request</option>
         </select>
       </div>
 

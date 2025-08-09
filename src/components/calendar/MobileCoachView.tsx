@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MobileNavigation from './MobileNavigation';
 import MobileEventCard from './MobileEventCard';
 
@@ -8,7 +8,7 @@ interface CalendarEvent {
   id: number;
   title: string;
   description: string | null;
-  activity_type: "practice" | "gym" | "match" | "tournament" | "education";
+  activity_type: "practice" | "gym" | "match" | "tournament" | "education" | "sparring_request";
   start_time: string;
   end_time: string;
   location: string | null;
@@ -76,6 +76,8 @@ export default function MobileCoachView({
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<number | null>(null);
+  const [teamPlayers, setTeamPlayers] = useState<Array<{id: number; name: string}>>([]);
   
   // Calculate current week dates
   const getWeekDates = (offset: number = 0) => {
@@ -92,12 +94,48 @@ export default function MobileCoachView({
   
   const { start: weekStart, end: weekEnd } = getWeekDates(weekOffset);
   
-  // Filter events for current week view and activity type
+  // Load team players for coaches
+  useEffect(() => {
+    const fetchTeamPlayers = async () => {
+      if (userRole === 'coach') {
+        try {
+          const response = await fetch('/api/teams/details');
+          if (response.ok) {
+            const data = await response.json();
+            // Extract players from team members
+            const players = data.members
+              ?.filter((member: any) => member.role === 'player')
+              .map((member: any) => ({
+                id: member.user_id,
+                name: member.user?.email || `Player ${member.user_id}` // Fallback name
+              }));
+            setTeamPlayers(players || []);
+          }
+        } catch (error) {
+          console.error('Failed to load team players:', error);
+        }
+      }
+    };
+    
+    fetchTeamPlayers();
+  }, [userRole]);
+  
+  // Filter events for current week view, activity type, and player
   const filteredEvents = events.filter(event => {
     const eventDate = new Date(event.start_time);
     const inWeek = eventDate >= weekStart && eventDate <= weekEnd;
     const matchesFilter = activeFilters.length === 0 || activeFilters.includes(event.activity_type);
-    return inWeek && matchesFilter;
+    
+    // Player filter (only for coaches)
+    let matchesPlayer = true;
+    if (userRole === 'coach' && selectedPlayer) {
+      // This would need event participants API to work fully
+      // For now, we'll show all events when a player is selected
+      // TODO: Implement proper player-event filtering with participants API
+      matchesPlayer = true;
+    }
+    
+    return inWeek && matchesFilter && matchesPlayer;
   });
   
   const handleToday = () => {
@@ -147,6 +185,10 @@ export default function MobileCoachView({
         onFilterChange={setActiveFilters}
         weekStart={weekStart}
         weekEnd={weekEnd}
+        userRole={userRole}
+        selectedPlayer={selectedPlayer}
+        onPlayerFilterChange={setSelectedPlayer}
+        teamPlayers={teamPlayers}
       />
       
       {/* Stats Summary */}

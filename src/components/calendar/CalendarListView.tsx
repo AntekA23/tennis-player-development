@@ -6,7 +6,7 @@ interface CalendarEvent {
   id: number;
   title: string;
   description: string | null;
-  activity_type: "practice" | "gym" | "match" | "tournament" | "education";
+  activity_type: "practice" | "gym" | "match" | "tournament" | "education" | "sparring_request";
   start_time: string;
   end_time: string;
   location: string | null;
@@ -29,6 +29,7 @@ const getActivityColor = (type: CalendarEvent["activity_type"]) => {
     match: "bg-red-100 text-red-800",
     tournament: "bg-purple-100 text-purple-800",
     education: "bg-yellow-100 text-yellow-800",
+    sparring_request: "bg-orange-100 text-orange-800",
   };
   return colors[type];
 };

@@ -7,7 +7,7 @@ interface CalendarEvent {
   id: number;
   title: string;
   description: string | null;
-  activity_type: "practice" | "gym" | "match" | "tournament" | "education";
+  activity_type: "practice" | "gym" | "match" | "tournament" | "education" | "sparring_request";
   start_time: string;
   end_time: string;
   location: string | null;

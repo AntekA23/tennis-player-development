@@ -13,7 +13,7 @@ interface CalendarEvent {
   id: number;
   title: string;
   description: string | null;
-  activity_type: "practice" | "gym" | "match" | "tournament" | "education";
+  activity_type: "practice" | "gym" | "match" | "tournament" | "education" | "sparring_request";
   start_time: string;
   end_time: string;
   location: string | null;
@@ -68,12 +68,17 @@ export default function CalendarView() {
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>(() => {
     if (typeof window === 'undefined') return 'list';
     
-    // On phones, always default to list (coaches on court)
+    // On phones, always default to list (coaches on court need mobile week view)
     if (deviceInfo.forceList) return 'list';
     
     // Otherwise check saved preference
     const saved = localStorage.getItem('calendarView') as 'calendar' | 'list';
     if (saved) return saved;
+    
+    // NEW: Coaches default to week view (MobileCoachView/List), others to calendar
+    if (isCoach) {
+      return 'list'; // MobileCoachView provides week view for coaches
+    }
     
     // Default: list for mobile, calendar for desktop
     return deviceInfo.isMobile ? 'list' : 'calendar';
@@ -278,6 +283,7 @@ export default function CalendarView() {
       match: "bg-red-100 text-red-800",
       tournament: "bg-purple-100 text-purple-800",
       education: "bg-yellow-100 text-yellow-800",
+      sparring_request: "bg-orange-100 text-orange-800",
     };
     return colors[type];
   };
