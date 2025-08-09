@@ -6,6 +6,7 @@ import CalendarGridView from "./CalendarGridView";
 import CalendarListView from "./CalendarListView";
 import MobileCoachView from "./MobileCoachView";
 import RescheduleModal from "./RescheduleModal";
+import ParentRequestForm from "./ParentRequestForm";
 import { useRoleAccess } from "@/contexts/UserContext";
 
 interface CalendarEvent {
@@ -50,6 +51,7 @@ export default function CalendarView() {
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [reschedulingEvent, setReschedulingEvent] = useState<CalendarEvent | null>(null);
+  const [showParentRequestForm, setShowParentRequestForm] = useState(false);
   
   // Get user role and permissions
   const { 
@@ -248,6 +250,27 @@ export default function CalendarView() {
     setShowForm(true);
   };
 
+  // Handle parent request submission
+  const handleParentRequest = async (data: any) => {
+    try {
+      const response = await fetch("/api/calendar/parent-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      
+      setShowParentRequestForm(false);
+      fetchEvents(); // Refresh events to show the new request
+      setMessage(result.message);
+      setTimeout(() => setMessage(null), 5000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to submit request");
+    }
+  };
+
   const getActivityColor = (type: CalendarEvent["activity_type"]) => {
     const colors = {
       practice: "bg-blue-100 text-blue-800",
@@ -332,10 +355,7 @@ export default function CalendarView() {
           
           {isParent && (
             <button
-              onClick={() => {
-                // TODO: Open parent request form
-                alert("Parent request system coming soon!");
-              }}
+              onClick={() => setShowParentRequestForm(true)}
               className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
             >
               Request Time
@@ -379,6 +399,13 @@ export default function CalendarView() {
           event={reschedulingEvent}
           onSubmit={handleRescheduleSubmit}
           onCancel={() => setReschedulingEvent(null)}
+        />
+      )}
+
+      {showParentRequestForm && (
+        <ParentRequestForm
+          onSubmit={handleParentRequest}
+          onCancel={() => setShowParentRequestForm(false)}
         />
       )}
 
