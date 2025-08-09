@@ -62,8 +62,38 @@ export const calendarEvents = pgTable("calendar_events", {
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Parent-child relationship table
+export const parentChild = pgTable("parent_child", {
+  id: serial("id").primaryKey(),
+  parent_id: integer("parent_id").notNull().references(() => users.id),
+  child_id: integer("child_id").notNull().references(() => users.id),
+  created_at: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Event participants table for tracking who's in each event
+export const eventParticipants = pgTable("event_participants", {
+  id: serial("id").primaryKey(),
+  event_id: integer("event_id").notNull().references(() => calendarEvents.id),
+  user_id: integer("user_id").notNull().references(() => users.id),
+  status: varchar("status", { length: 32 }).notNull().default('confirmed'), // 'confirmed', 'tentative', 'declined'
+  created_at: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Calendar events relations
-export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
+export const calendarEventsRelations = relations(calendarEvents, ({ one, many }) => ({
   team: one(teams, { fields: [calendarEvents.team_id], references: [teams.id] }),
   creator: one(users, { fields: [calendarEvents.created_by], references: [users.id] }),
+  participants: many(eventParticipants),
+}));
+
+// Parent-child relations
+export const parentChildRelations = relations(parentChild, ({ one }) => ({
+  parent: one(users, { fields: [parentChild.parent_id], references: [users.id] }),
+  child: one(users, { fields: [parentChild.child_id], references: [users.id] }),
+}));
+
+// Event participants relations
+export const eventParticipantsRelations = relations(eventParticipants, ({ one }) => ({
+  event: one(calendarEvents, { fields: [eventParticipants.event_id], references: [calendarEvents.id] }),
+  user: one(users, { fields: [eventParticipants.user_id], references: [users.id] }),
 }));

@@ -43,6 +43,13 @@
       "when": 1754485668445,
       "tag": "0005_wide_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1754724330689,
+      "tag": "0006_early_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

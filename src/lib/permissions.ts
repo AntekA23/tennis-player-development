@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { teamMembers, calendarEvents, users } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { teamMembers, calendarEvents, users, parentChild, eventParticipants } from "@/db/schema";
+import { eq, and, gte, lte, or, inArray } from "drizzle-orm";
 
 // User role types
 export type UserRole = 'coach' | 'parent' | 'player';
@@ -179,31 +179,64 @@ export async function getVisibleEvents(
     return [];
   }
 
-  let conditions = [eq(calendarEvents.team_id, parseInt(teamId))];
+  let conditions: any[] = [eq(calendarEvents.team_id, parseInt(teamId))];
   
   // Add date filters if provided
   if (startDate) {
-    conditions.push(eq(calendarEvents.start_time, startDate)); // This should be gte
+    conditions.push(gte(calendarEvents.start_time, startDate));
   }
   if (endDate) {
-    conditions.push(eq(calendarEvents.end_time, endDate)); // This should be lte
+    conditions.push(lte(calendarEvents.end_time, endDate));
   }
 
   switch (userRole.role) {
     case 'coach':
-      // Coaches see all team events
+      // Coaches see all team events - no additional filtering needed
       break;
       
     case 'parent':
-      // Parents see only events involving their child
-      // TODO: Need to add player-event relationship to filter properly
-      // For now, show all events (will be filtered by frontend)
+      // Parents see only events involving their children
+      const children = await db
+        .select({ childId: parentChild.child_id })
+        .from(parentChild)
+        .where(eq(parentChild.parent_id, parseInt(userId)));
+      
+      if (children.length > 0) {
+        const childIds = children.map(c => c.childId);
+        
+        // Get events where any of their children are participants
+        const participatingEvents = await db
+          .select({ eventId: eventParticipants.event_id })
+          .from(eventParticipants)
+          .where(inArray(eventParticipants.user_id, childIds));
+        
+        if (participatingEvents.length > 0) {
+          const eventIds = participatingEvents.map(p => p.eventId);
+          conditions.push(inArray(calendarEvents.id, eventIds));
+        } else {
+          // No events with their children - return empty
+          return [];
+        }
+      } else {
+        // No children registered - return empty
+        return [];
+      }
       break;
       
     case 'player':
       // Players see only events they're participating in
-      // TODO: Need to add player-event relationship to filter properly
-      // For now, show all events (will be filtered by frontend)
+      const playerEvents = await db
+        .select({ eventId: eventParticipants.event_id })
+        .from(eventParticipants)
+        .where(eq(eventParticipants.user_id, parseInt(userId)));
+      
+      if (playerEvents.length > 0) {
+        const eventIds = playerEvents.map(p => p.eventId);
+        conditions.push(inArray(calendarEvents.id, eventIds));
+      } else {
+        // Not participating in any events - return empty
+        return [];
+      }
       break;
   }
 

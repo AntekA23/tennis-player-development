@@ -9,7 +9,10 @@
     "start": "next start",
     "lint": "next lint --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "db:push": "npx drizzle-kit push",
+    "db:generate": "npx drizzle-kit generate",
+    "db:seed": "npx tsx scripts/seed-test-users.ts"
   },
   "repository": {
     "type": "git",
