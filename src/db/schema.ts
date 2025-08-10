@@ -41,7 +41,8 @@ export const activityTypeEnum = pgEnum('activity_type', [
   'gym',
   'match',
   'tournament',
-  'education'
+  'education',
+  'sparring_request'
 ]);
 
 // Calendar events table
@@ -58,6 +59,8 @@ export const calendarEvents = pgTable("calendar_events", {
   is_recurring: boolean("is_recurring").notNull().default(false),
   recurrence_pattern: varchar("recurrence_pattern", { length: 32 }), // 'weekly', 'monthly', etc.
   original_event_id: integer("original_event_id"), // self-reference for cloned events
+  request_status: varchar("request_status", { length: 32 }).default('confirmed'), // 'pending', 'approved', 'declined', 'confirmed'
+  approved_by: integer("approved_by").references(() => users.id), // Coach who approved/declined the request
   created_at: timestamp("created_at").notNull().defaultNow(),
   updated_at: timestamp("updated_at").notNull().defaultNow(),
 });

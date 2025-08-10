@@ -21,6 +21,9 @@ interface MobileEventCardProps {
   onClone?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onApproveSparring?: (eventId: number) => void;
+  onDeclineSparring?: (eventId: number) => void;
+  userRole?: 'coach' | 'parent' | 'player';
 }
 
 // Utility functions - kept inline for component isolation
@@ -41,6 +44,9 @@ export default function MobileEventCard({
   onClone,
   onEdit,
   onDelete,
+  onApproveSparring,
+  onDeclineSparring,
+  userRole = 'player',
 }: MobileEventCardProps) {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -153,8 +159,34 @@ export default function MobileEventCard({
                 Delete
               </button>
             )}
+
+            {/* Sparring Request Approval Actions (Coach Only) */}
+            {event.activity_type === 'sparring_request' && userRole === 'coach' && onApproveSparring && onDeclineSparring && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onApproveSparring(event.id);
+                  }}
+                  className="bg-green-100 text-green-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
+                >
+                  <span>✅</span>
+                  Approve
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeclineSparring(event.id);
+                  }}
+                  className="bg-red-100 text-red-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
+                >
+                  <span>❌</span>
+                  Decline
+                </button>
+              </>
+            )}
             
-            {!onReschedule && !onClone && !onEdit && !onDelete && (
+            {!onReschedule && !onClone && !onEdit && !onDelete && !onApproveSparring && (
               <div className="col-span-2 text-center text-gray-500 p-3">
                 View-only schedule
               </div>

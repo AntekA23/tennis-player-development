@@ -23,6 +23,8 @@ interface MobileCoachViewProps {
   onCloneEvent?: (event: CalendarEvent) => void;
   onCreateEvent?: () => void;
   onRescheduleEvent?: (event: CalendarEvent) => void;
+  onApproveSparring?: (eventId: number) => void;
+  onDeclineSparring?: (eventId: number) => void;
   userRole?: 'coach' | 'parent' | 'player';
 }
 
@@ -71,6 +73,8 @@ export default function MobileCoachView({
   onCloneEvent,
   onCreateEvent,
   onRescheduleEvent,
+  onApproveSparring,
+  onDeclineSparring,
   userRole = 'coach',
 }: MobileCoachViewProps) {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
@@ -224,6 +228,9 @@ export default function MobileCoachView({
                   onClone={onCloneEvent ? () => onCloneEvent(event) : undefined}
                   onEdit={onEditEvent ? () => onEditEvent(event) : undefined}
                   onDelete={onDeleteEvent ? () => onDeleteEvent(event.id) : undefined}
+                  onApproveSparring={onApproveSparring}
+                  onDeclineSparring={onDeclineSparring}
+                  userRole={userRole}
                 />
               ))}
             </div>

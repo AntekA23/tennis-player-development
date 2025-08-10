@@ -7,6 +7,7 @@ import CalendarListView from "./CalendarListView";
 import MobileCoachView from "./MobileCoachView";
 import RescheduleModal from "./RescheduleModal";
 import ParentRequestForm from "./ParentRequestForm";
+import SparringRequestForm from "./SparringRequestForm";
 import { useRoleAccess } from "@/contexts/UserContext";
 
 interface CalendarEvent {
@@ -52,6 +53,7 @@ export default function CalendarView() {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [reschedulingEvent, setReschedulingEvent] = useState<CalendarEvent | null>(null);
   const [showParentRequestForm, setShowParentRequestForm] = useState(false);
+  const [showSparringRequestForm, setShowSparringRequestForm] = useState(false);
   
   // Get user role and permissions
   const { 
@@ -276,6 +278,69 @@ export default function CalendarView() {
     }
   };
 
+  // Handle sparring request submission
+  const handleSparringRequest = async (data: any) => {
+    try {
+      const response = await fetch("/api/calendar/sparring-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      
+      setShowSparringRequestForm(false);
+      fetchEvents(); // Refresh events to show the new request
+      setMessage(result.message);
+      setTimeout(() => setMessage(null), 5000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to submit sparring request");
+    }
+  };
+
+  // Handle sparring approval
+  const handleApproveSparring = async (eventId: number) => {
+    if (!confirm("Approve this sparring request?")) return;
+    try {
+      const response = await fetch(`/api/calendar/sparring-requests/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve" }),
+      });
+      
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      
+      fetchEvents(); // Refresh to show updated status
+      setMessage(result.message);
+      setTimeout(() => setMessage(null), 5000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to approve sparring request");
+    }
+  };
+
+  // Handle sparring decline
+  const handleDeclineSparring = async (eventId: number) => {
+    if (!confirm("Decline this sparring request?")) return;
+    try {
+      const response = await fetch(`/api/calendar/sparring-requests/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "decline" }),
+      });
+      
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error);
+      
+      fetchEvents(); // Refresh to show updated status
+      setMessage(result.message);
+      setTimeout(() => setMessage(null), 5000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to decline sparring request");
+    }
+  };
+
   const getActivityColor = (type: CalendarEvent["activity_type"]) => {
     const colors = {
       practice: "bg-blue-100 text-blue-800",
@@ -370,12 +435,10 @@ export default function CalendarView() {
           
           {isPlayer && (
             <button
-              onClick={() => {
-                // TODO: Open sparring request form
-                alert("Sparring request system coming soon!");
-              }}
-              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+              onClick={() => setShowSparringRequestForm(true)}
+              className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 flex items-center gap-2"
             >
+              <span>⚔️</span>
               Request Sparring
             </button>
           )}
@@ -415,6 +478,13 @@ export default function CalendarView() {
         />
       )}
 
+      {showSparringRequestForm && (
+        <SparringRequestForm
+          onSubmit={handleSparringRequest}
+          onCancel={() => setShowSparringRequestForm(false)}
+        />
+      )}
+
       {/* Render appropriate view based on device and selection */}
       {viewMode === 'calendar' && isCoach ? (
         <CalendarGridView
@@ -440,6 +510,8 @@ export default function CalendarView() {
               setEditingEvent(null);
               setShowForm(true);
             } : undefined}
+            onApproveSparring={isCoach ? handleApproveSparring : undefined}
+            onDeclineSparring={isCoach ? handleDeclineSparring : undefined}
             userRole={isCoach ? 'coach' : isParent ? 'parent' : 'player'}
           />
         ) : (
