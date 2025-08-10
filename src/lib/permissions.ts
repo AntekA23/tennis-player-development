@@ -189,63 +189,62 @@ export async function getVisibleEvents(
     conditions.push(lte(calendarEvents.end_time, endDate));
   }
 
+  // Get all team events first
+  const allEvents = await db
+    .select()
+    .from(calendarEvents)
+    .where(and(...conditions));
+
+  // Now filter based on role
   switch (userRole.role) {
     case 'coach':
-      // Coaches see all team events - no additional filtering needed
-      break;
+      // Coaches see ALL team events
+      return allEvents;
       
     case 'parent':
-      // Parents see only events involving their children
+      // Parents see events involving their children OR events they created
       const children = await db
         .select({ childId: parentChild.child_id })
         .from(parentChild)
         .where(eq(parentChild.parent_id, parseInt(userId)));
       
-      if (children.length > 0) {
-        const childIds = children.map(c => c.childId);
-        
-        // Get events where any of their children are participants
+      const childIds = children.map(c => c.childId);
+      
+      // Get events where children are participants
+      const childEventIds = new Set<number>();
+      if (childIds.length > 0) {
         const participatingEvents = await db
           .select({ eventId: eventParticipants.event_id })
           .from(eventParticipants)
           .where(inArray(eventParticipants.user_id, childIds));
         
-        if (participatingEvents.length > 0) {
-          const eventIds = participatingEvents.map(p => p.eventId);
-          conditions.push(inArray(calendarEvents.id, eventIds));
-        } else {
-          // No events with their children - return empty
-          return [];
-        }
-      } else {
-        // No children registered - return empty
-        return [];
+        participatingEvents.forEach(p => childEventIds.add(p.eventId));
       }
-      break;
+      
+      // Filter: events with children OR events parent created
+      return allEvents.filter(event => 
+        childEventIds.has(event.id) || 
+        event.created_by === parseInt(userId)
+      );
       
     case 'player':
-      // Players see only events they're participating in
+      // Players see events they're participating in OR events they created
+      const playerEventIds = new Set<number>();
       const playerEvents = await db
         .select({ eventId: eventParticipants.event_id })
         .from(eventParticipants)
         .where(eq(eventParticipants.user_id, parseInt(userId)));
       
-      if (playerEvents.length > 0) {
-        const eventIds = playerEvents.map(p => p.eventId);
-        conditions.push(inArray(calendarEvents.id, eventIds));
-      } else {
-        // Not participating in any events - return empty
-        return [];
-      }
-      break;
+      playerEvents.forEach(p => playerEventIds.add(p.eventId));
+      
+      // Filter: events participating in OR events player created
+      return allEvents.filter(event => 
+        playerEventIds.has(event.id) || 
+        event.created_by === parseInt(userId)
+      );
   }
 
-  const events = await db
-    .select()
-    .from(calendarEvents)
-    .where(and(...conditions));
-
-  return events;
+  return [];
 }
 
 // Get user permissions for UI rendering

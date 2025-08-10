@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { calendarEvents } from "@/db/schema";
+import { calendarEvents, eventParticipants } from "@/db/schema";
 import { cookies } from "next/headers";
 import { getUserTeamRole } from "@/lib/permissions";
 import { eq, and } from "drizzle-orm";
@@ -71,6 +71,13 @@ export async function POST(request: NextRequest) {
       team_id: parseInt(teamId),
       request_status: 'confirmed', // Already confirmed, no approval needed
     }).returning();
+
+    // Add the creator as a participant so they can see their own sparring session
+    await db.insert(eventParticipants).values({
+      event_id: newRequest.id,
+      user_id: parseInt(userId),
+      status: 'confirmed',
+    });
 
     return NextResponse.json({
       success: true,
