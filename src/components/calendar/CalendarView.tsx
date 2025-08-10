@@ -412,7 +412,7 @@ export default function CalendarView() {
           )}
           
           {/* Role-based action buttons */}
-          {showCreateButton && isCoach && (
+          {isCoach && (
             <button
               onClick={() => {
                 setEditingEvent(null);
@@ -438,8 +438,8 @@ export default function CalendarView() {
               onClick={() => setShowSparringRequestForm(true)}
               className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 flex items-center gap-2"
             >
-              <span>⚔️</span>
-              Request Sparring
+              <span>🎾</span>
+              Log Sparring
             </button>
           )}
         </div>

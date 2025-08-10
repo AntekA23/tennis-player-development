@@ -43,13 +43,6 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate activity type for sparring requests
-    if (activity_type !== 'sparring_request') {
-      return NextResponse.json({ 
-        error: "Invalid activity type for sparring requests" 
-      }, { status: 400 });
-    }
-
     // Validate time ordering
     const startDate = new Date(start_time);
     const endDate = new Date(end_time);
@@ -62,38 +55,27 @@ export async function POST(request: NextRequest) {
 
     if (startDate < new Date()) {
       return NextResponse.json({ 
-        error: "Cannot request sparring in the past" 
+        error: "Cannot log sparring in the past" 
       }, { status: 400 });
     }
 
-    // Validate duration (30 minutes to 3 hours)
-    const durationMs = endDate.getTime() - startDate.getTime();
-    const durationHours = durationMs / (1000 * 60 * 60);
-    
-    if (durationHours < 0.5 || durationHours > 3) {
-      return NextResponse.json({ 
-        error: "Sparring sessions must be between 30 minutes and 3 hours" 
-      }, { status: 400 });
-    }
-
-    // Create the sparring request as a pending event
+    // Create the sparring session directly (no approval needed)
     const [newRequest] = await db.insert(calendarEvents).values({
-      title: title || 'Sparring Request',
+      title: title || 'Sparring Session',
       description: description || null,
       activity_type: 'sparring_request',
       start_time: startDate,
       end_time: endDate,
-      location: location || null,
-      created_by: parseInt(userId), // Player who created the request
+      location: location || 'Tennis Court',
+      created_by: parseInt(userId),
       team_id: parseInt(teamId),
-      request_status: 'pending', // All sparring requests start as pending
-      approved_by: null, // Will be set when coach approves
+      request_status: 'confirmed', // Already confirmed, no approval needed
     }).returning();
 
     return NextResponse.json({
       success: true,
       request: newRequest,
-      message: "Sparring request submitted successfully! Coach will review and approve."
+      message: "Sparring session logged successfully!"
     });
 
   } catch (error) {

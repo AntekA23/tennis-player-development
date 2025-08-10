@@ -27,6 +27,7 @@
   "homepage": "https://github.com/AntekA23/tennis-player-development#readme",
   "dependencies": {
     "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.1",
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.4",
     "moment": "^2.30.1",

@@ -1,6 +1,10 @@
+import { config } from "dotenv";
 import { db } from "../src/db";
 import { users, teams, teamMembers, parentChild, calendarEvents, eventParticipants } from "../src/db/schema";
 import bcrypt from "bcryptjs";
+
+// Load environment variables
+config({ path: ".env" });
 
 async function seedTestUsers() {
   console.log("🌱 Starting test user seeding...");

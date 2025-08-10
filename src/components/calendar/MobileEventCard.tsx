@@ -28,10 +28,10 @@ interface MobileEventCardProps {
 
 // Utility functions - kept inline for component isolation
 const getActivityColor = (type: CalendarEvent["activity_type"]) => 
-  ({practice: "bg-blue-500", gym: "bg-green-500", match: "bg-orange-500", tournament: "bg-purple-500", education: "bg-gray-500", sparring_request: "bg-red-500"})[type];
+  ({practice: "bg-blue-500", gym: "bg-green-500", match: "bg-red-500", tournament: "bg-purple-500", education: "bg-gray-500", sparring_request: "bg-orange-500"})[type];
 
 const getActivityEmoji = (type: CalendarEvent["activity_type"]) => 
-  ({practice: "🎾", gym: "💪", match: "🏆", tournament: "🏅", education: "📚", sparring_request: "⚔️"})[type];
+  ({practice: "🎾", gym: "💪", match: "🏆", tournament: "🏅", education: "📚", sparring_request: "🎾"})[type];
 
 const formatTime = (dateString: string) => 
   new Date(dateString).toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit", hour12: true});
@@ -160,31 +160,6 @@ export default function MobileEventCard({
               </button>
             )}
 
-            {/* Sparring Request Approval Actions (Coach Only) */}
-            {event.activity_type === 'sparring_request' && userRole === 'coach' && onApproveSparring && onDeclineSparring && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onApproveSparring(event.id);
-                  }}
-                  className="bg-green-100 text-green-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
-                >
-                  <span>✅</span>
-                  Approve
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeclineSparring(event.id);
-                  }}
-                  className="bg-red-100 text-red-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
-                >
-                  <span>❌</span>
-                  Decline
-                </button>
-              </>
-            )}
             
             {!onReschedule && !onClone && !onEdit && !onDelete && !onApproveSparring && (
               <div className="col-span-2 text-center text-gray-500 p-3">
