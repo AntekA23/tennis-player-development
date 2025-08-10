@@ -15,11 +15,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user is a player
+    // Allow all authenticated team members to log sparring sessions
     const roleCheck = await getUserTeamRole(userId, teamId);
-    if (!roleCheck || roleCheck.role !== 'player') {
+    if (!roleCheck) {
       return NextResponse.json({ 
-        error: "Only players can submit sparring requests" 
+        error: "You must be a team member to log sparring sessions" 
       }, { status: 403 });
     }
 

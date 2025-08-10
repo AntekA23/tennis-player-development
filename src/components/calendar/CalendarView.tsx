@@ -433,15 +433,14 @@ export default function CalendarView() {
             </button>
           )}
           
-          {isPlayer && (
-            <button
-              onClick={() => setShowSparringRequestForm(true)}
-              className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 flex items-center gap-2"
-            >
-              <span>🎾</span>
-              Log Sparring
-            </button>
-          )}
+          {/* Log Sparring available for all roles */}
+          <button
+            onClick={() => setShowSparringRequestForm(true)}
+            className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 flex items-center gap-2"
+          >
+            <span>🎾</span>
+            Log Sparring
+          </button>
         </div>
       </div>
 
