@@ -2,6 +2,69 @@
 
 This document enforces anti-chaos development principles to prevent drift back into complexity.
 
+## 🚨 STOP / PAUSE Conditions (Mandatory for All Development)
+
+These rules apply to **all contributors**, including Claude Developer Agent.  
+If any of these conditions are met, coding MUST STOP and work can only resume after Senior Advisor (ChatGPT) review and approval.
+
+### STOP Conditions:
+1. **No Approved Plan**
+   - No step-by-step plan with defined success criteria approved by Senior Advisor.
+   - Action: Request Senior Advisor plan before coding.
+
+2. **Scope Creep**
+   - Task includes changes not listed in the approved scope.
+   - Action: Pause and request updated approval.
+
+3. **LOC Limit Violation**
+   - Estimated change size exceeds 150 LOC (excluding tests/docs).
+   - Action: Seek explicit approval before proceeding.
+
+4. **Quality Gate Risk**
+   - Risk of failing `npm run typecheck`, `npm run lint --max-warnings 0`, or `npm run build`.
+   - Action: Fix or get approval before continuing.
+
+5. **Time Overrun**
+   - Basic feature taking >1 hour to implement without results.
+   - Action: Request plan simplification or scope reduction.
+
+---
+
+### Required STOP Messages:
+When a STOP condition is hit, the Developer must output one of the following messages:
+
+- **No Approved Plan**
+```
+🚨 STOP – No plan approved by Senior Advisor.
+Cannot proceed until a step-by-step plan with success criteria is confirmed.
+```
+
+- **Scope Creep**
+```
+🚨 STOP – Task scope exceeds approved plan.
+Requires Senior Advisor approval before continuing.
+```
+
+- **LOC Limit**
+```
+🚨 STOP – Estimated change size exceeds 150 LOC.
+Confirm with Senior Advisor before proceeding.
+```
+
+- **Quality Risk**
+```
+🚨 STOP – Risk of failing quality gates (typecheck/lint/build).
+Approval required before continuing.
+```
+
+- **Time Overrun**
+```
+🚨 STOP – Implementation taking >1 hour for a basic feature.
+Requesting plan simplification before continuing.
+```
+
+For detailed STOP/PAUSE enforcement messages, see CLAUDE.md.
+
 ## Code Quality & PR Discipline
 
 ### ≤150 LOC per PR
