@@ -25,6 +25,11 @@ interface CalendarGridViewProps {
 
 const localizer = momentLocalizer(moment);
 
+// Display label mapping helper
+const getDisplayActivityType = (type: CalendarEvent["activity_type"]) => {
+  return type === 'sparring_request' ? 'sparring' : type;
+};
+
 // Activity colors with accessibility patterns
 const eventStyleGetter = (event: any) => {
   const styles = {
@@ -51,6 +56,11 @@ const eventStyleGetter = (event: any) => {
     education: { 
       backgroundColor: '#6B7280', 
       border: '2px dashed #374151',
+      color: 'white'
+    },
+    sparring_request: { 
+      backgroundColor: '#F97316', 
+      border: '2px solid #EA580C',
       color: 'white'
     }
   };

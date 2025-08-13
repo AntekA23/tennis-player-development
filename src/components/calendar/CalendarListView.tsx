@@ -22,6 +22,11 @@ interface CalendarListViewProps {
   onCreateEvent?: () => void;
 }
 
+// Display label mapping helper
+const getDisplayActivityType = (type: CalendarEvent["activity_type"]) => {
+  return type === 'sparring_request' ? 'sparring' : type;
+};
+
 const getActivityColor = (type: CalendarEvent["activity_type"]) => {
   const colors = {
     practice: "bg-blue-100 text-blue-800",
@@ -109,7 +114,7 @@ export default function CalendarListView({
                   event.activity_type
                 )}`}
               >
-                {event.activity_type}
+                {getDisplayActivityType(event.activity_type)}
               </span>
               {onCloneEvent && (
                 <button

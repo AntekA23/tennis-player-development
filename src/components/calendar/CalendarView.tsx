@@ -22,6 +22,11 @@ interface CalendarEvent {
   created_by: number;
 }
 
+// Display label mapping helper
+const getDisplayActivityType = (type: CalendarEvent["activity_type"]) => {
+  return type === 'sparring_request' ? 'sparring' : type;
+};
+
 // Enhanced mobile detection for coach-first experience
 const isMobileDevice = () => {
   if (typeof window === 'undefined') return { isMobile: false, forceList: false };
@@ -392,8 +397,8 @@ export default function CalendarView() {
         </div>
         
         <div className="flex items-center gap-2 sm:gap-4">
-          {/* View Toggle - Hide calendar option on phones, show only for coaches and tablets+ */}
-          {!deviceInfo.forceList && isCoach && (
+          {/* View Toggle - Available for all users */}
+          {
             <div className="flex bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => handleViewChange('calendar')}
@@ -416,7 +421,7 @@ export default function CalendarView() {
                 📋 List
               </button>
             </div>
-          )}
+          }
           
           {/* Role-based action buttons */}
           {isCoach && (
@@ -547,9 +552,16 @@ export default function CalendarView() {
         }}
       />
 
-      {/* Simplified render logic - always show something */}
+      {/* Conditional render logic - Calendar or List */}
       
-      {events.length > 0 ? (
+      {viewMode === 'calendar' && events.length > 0 ? (
+        <CalendarGridView
+          events={events}
+          loading={loading}
+          onSelectEvent={handleSelectEvent}
+          onSelectSlot={handleSelectSlot}
+        />
+      ) : events.length > 0 ? (
         <CalendarListView
           events={events}
           loading={loading}
