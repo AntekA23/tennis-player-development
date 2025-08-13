@@ -90,21 +90,38 @@ export default function CalendarEventForm({
             value={formData.start_time}
             onChange={(e) => {
               const newStartTime = e.target.value;
-              const currentStart = new Date(formData.start_time);
-              const currentEnd = new Date(formData.end_time);
-              const newStart = new Date(newStartTime);
               
-              // Calculate duration between current start and end
-              const duration = currentEnd.getTime() - currentStart.getTime();
+              if (!newStartTime || !formData.start_time || !formData.end_time) {
+                // If any value is missing, just update start time
+                setFormData({ ...formData, start_time: newStartTime });
+                return;
+              }
               
-              // Apply same duration to new start time
-              const newEnd = new Date(newStart.getTime() + duration);
-              
-              setFormData({ 
-                ...formData, 
-                start_time: newStartTime,
-                end_time: newEnd.toISOString().slice(0, 16) // Format for datetime-local
-              });
+              try {
+                const currentStart = new Date(formData.start_time);
+                const currentEnd = new Date(formData.end_time);
+                const newStart = new Date(newStartTime);
+                
+                // Calculate duration between current start and end (in milliseconds)
+                const duration = currentEnd.getTime() - currentStart.getTime();
+                
+                // Only auto-sync if duration is positive (valid) and reasonable (< 24 hours)
+                if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
+                  const newEnd = new Date(newStart.getTime() + duration);
+                  
+                  setFormData({ 
+                    ...formData, 
+                    start_time: newStartTime,
+                    end_time: newEnd.toISOString().slice(0, 16)
+                  });
+                } else {
+                  // If duration is invalid, just update start time and let user fix end time
+                  setFormData({ ...formData, start_time: newStartTime });
+                }
+              } catch (error) {
+                // If date parsing fails, just update start time
+                setFormData({ ...formData, start_time: newStartTime });
+              }
             }}
             className="w-full px-3 py-2 border rounded-md"
           />
