@@ -178,10 +178,18 @@ export default function CalendarView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!response.ok) throw new Error("Failed to create event");
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to create event");
+      }
+      
       setShowForm(false);
       fetchEvents();
+      setMessage('✅ Event created successfully');
+      setTimeout(() => setMessage(null), 3000);
     } catch (err) {
+      console.error('[CalendarView] Create event error:', err);
       alert(err instanceof Error ? err.message : "Failed to create event");
     }
   };

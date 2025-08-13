@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
 
     // Check role-based creation permission
     const createPermission = await canCreateEvent(userId, teamId, activity_type as ActivityType);
+    console.log('[API] Create event permission check:', { userId, teamId, activity_type, createPermission });
     if (!createPermission.allowed) {
       return NextResponse.json(
         { error: createPermission.reason || "Not authorized to create this event type" },
@@ -89,6 +90,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Log the data being inserted
+    console.log('[API] Creating event with data:', {
+      team_id: parseInt(teamId),
+      created_by: parseInt(userId),
+      title,
+      activity_type,
+      start_time,
+      end_time,
+      start_date: new Date(start_time),
+      end_date: new Date(end_time)
+    });
 
     const [newEvent] = await db.insert(calendarEvents).values({
       team_id: parseInt(teamId),
@@ -107,8 +120,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ event: newEvent }, { status: 201 });
   } catch (error) {
     console.error("Error creating calendar event:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to create event" },
+      { error: `Failed to create event: ${errorMessage}` },
       { status: 500 }
     );
   }
