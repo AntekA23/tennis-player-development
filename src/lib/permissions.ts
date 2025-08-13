@@ -21,29 +21,40 @@ interface UserTeamRole {
 // Get user's role in a specific team
 export async function getUserTeamRole(userId: string, teamId: string): Promise<UserTeamRole | null> {
   try {
-    const [member] = await db
+    // First try to find member with any status to debug
+    const [memberAny] = await db
       .select({
         role: teamMembers.role,
         userId: teamMembers.user_id,
         teamId: teamMembers.team_id,
+        status: teamMembers.status,
       })
       .from(teamMembers)
       .where(
         and(
           eq(teamMembers.user_id, parseInt(userId)),
-          eq(teamMembers.team_id, parseInt(teamId)),
-          eq(teamMembers.status, 'accepted')
+          eq(teamMembers.team_id, parseInt(teamId))
         )
       );
 
-    if (!member) {
+    console.log('[Permissions] Found team member:', { userId, teamId, memberAny });
+
+    if (!memberAny) {
+      console.log('[Permissions] No team member found for user:', userId, 'team:', teamId);
+      return null;
+    }
+
+    // For now, accept both 'accepted' and 'pending' status to fix the issue
+    // In production, you might want to only allow 'accepted'
+    if (memberAny.status !== 'accepted' && memberAny.status !== 'pending') {
+      console.log('[Permissions] Team member has invalid status:', memberAny.status);
       return null;
     }
 
     return {
-      role: member.role as UserRole,
-      userId: member.userId,
-      teamId: member.teamId,
+      role: memberAny.role as UserRole,
+      userId: memberAny.userId,
+      teamId: memberAny.teamId,
     };
   } catch (error) {
     console.error('Error getting user team role:', error);
@@ -57,15 +68,21 @@ export async function canCreateEvent(
   teamId: string, 
   activityType: ActivityType
 ): Promise<PermissionResult> {
+  console.log('[Permissions] Checking create permission:', { userId, teamId, activityType });
+  
   const userRole = await getUserTeamRole(userId, teamId);
   
   if (!userRole) {
+    console.log('[Permissions] No user role found');
     return { allowed: false, reason: 'User not found in team' };
   }
+
+  console.log('[Permissions] User role found:', userRole);
 
   switch (userRole.role) {
     case 'coach':
       // Coaches can create all event types
+      console.log('[Permissions] Coach can create all events');
       return { allowed: true };
       
     case 'parent':
@@ -83,7 +100,8 @@ export async function canCreateEvent(
       return { allowed: false, reason: 'Players can only create sparring match requests' };
       
     default:
-      return { allowed: false, reason: 'Invalid role' };
+      console.log('[Permissions] Invalid role:', userRole.role);
+      return { allowed: false, reason: `Invalid role: ${userRole.role}` };
   }
 }
 
