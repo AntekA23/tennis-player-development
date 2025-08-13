@@ -51,8 +51,23 @@ export async function getUserTeamRole(userId: string, teamId: string): Promise<U
       return null;
     }
 
+    // Map team member roles to user roles
+    // In team_members table: 'creator' and 'member' 
+    // Need to get actual role from users table
+    const [user] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, parseInt(userId)));
+
+    if (!user) {
+      console.log('[Permissions] User not found in users table');
+      return null;
+    }
+
+    console.log('[Permissions] User role from users table:', user.role);
+
     return {
-      role: memberAny.role as UserRole,
+      role: user.role as UserRole,
       userId: memberAny.userId,
       teamId: memberAny.teamId,
     };
