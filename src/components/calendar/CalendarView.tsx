@@ -287,10 +287,16 @@ export default function CalendarView() {
     setShowForm(true);
   };
 
-  // Handle calendar event click
-  const handleSelectEvent = (event: any) => {
-    setEditingEvent(event.resource);
+  // Unified event selection handler
+  const onSelectEvent = (event: CalendarEvent) => {
+    console.info('[calendar] edit', { id: event.id });
+    setEditingEvent(event);
     setShowForm(true);
+  };
+
+  // Handle calendar grid event click (unwrap .resource)
+  const handleSelectEvent = (event: any) => {
+    onSelectEvent(event.resource);
   };
 
   // Handle parent request submission
@@ -584,22 +590,14 @@ export default function CalendarView() {
           loading={loading}
           onSelectEvent={handleSelectEvent}
           onSelectSlot={handleSelectSlot}
-          onEditEvent={canEditDelete ? (event) => {
-            console.info('[calendar] edit', { id: event.id });
-            setEditingEvent(event);
-            setShowForm(true);
-          } : undefined}
+          onEditEvent={canEditDelete ? onSelectEvent : undefined}
           onDeleteEvent={canEditDelete ? handleDeleteEvent : undefined}
         />
       ) : events.length > 0 ? (
         <CalendarListView
           events={events}
           loading={loading}
-          onEditEvent={canEditDelete ? (event) => {
-            console.info('[calendar] edit', { id: event.id });
-            setEditingEvent(event);
-            setShowForm(true);
-          } : undefined}
+          onEditEvent={canEditDelete ? onSelectEvent : undefined}
           onDeleteEvent={canEditDelete ? handleDeleteEvent : undefined}
           onCloneEvent={showEditControls ? handleCloneEvent : undefined}
           onCreateEvent={showCreateButton ? () => {
