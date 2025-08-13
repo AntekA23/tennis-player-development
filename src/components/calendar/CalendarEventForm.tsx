@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRoleAccess } from "@/contexts/UserContext";
 
 interface CalendarEventFormProps {
@@ -64,11 +64,26 @@ export default function CalendarEventForm({
 }: CalendarEventFormProps) {
   const { isCoach, isParent, isPlayer, permissions } = useRoleAccess();
   
+  // Get user from localStorage as fallback
+  const [localUserRole, setLocalUserRole] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setLocalUserRole(user.role);
+    }
+  }, []);
+  
+  // Use fallback if permissions not loaded
+  const isCoachFallback = isCoach || localUserRole === 'coach';
+  const isParentFallback = isParent || localUserRole === 'parent';
+  const isPlayerFallback = isPlayer || localUserRole === 'player';
+  
   // Get default activity type based on role
   const getDefaultActivityType = () => {
     if (initialData?.activity_type) return initialData.activity_type;
-    if (isParent) return "tournament";
-    if (isPlayer) return "sparring_request";
+    if (isParentFallback && !isCoachFallback) return "tournament";
+    if (isPlayerFallback && !isCoachFallback && !isParentFallback) return "sparring_request";
     return "practice"; // coach default
   };
 
@@ -127,7 +142,7 @@ export default function CalendarEventForm({
           onChange={(e) => setFormData({ ...formData, activity_type: e.target.value })}
           className="w-full px-3 py-2 border rounded-md"
         >
-          {isCoach && (
+          {isCoachFallback && (
             <>
               <option value="practice">Practice</option>
               <option value="gym">Gym</option>
@@ -136,10 +151,10 @@ export default function CalendarEventForm({
               <option value="education">Education</option>
             </>
           )}
-          {isParent && (
+          {isParentFallback && !isCoachFallback && (
             <option value="tournament">Tournament</option>
           )}
-          {isPlayer && (
+          {isPlayerFallback && !isCoachFallback && !isParentFallback && (
             <option value="sparring_request">Sparring Request</option>
           )}
         </select>
