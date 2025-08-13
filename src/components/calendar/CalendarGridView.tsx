@@ -21,6 +21,8 @@ interface CalendarGridViewProps {
   loading: boolean;
   onSelectEvent: (event: any) => void;
   onSelectSlot: (slotInfo: any) => void;
+  onEditEvent?: (event: CalendarEvent) => void;
+  onDeleteEvent?: (id: number) => void;
 }
 
 const localizer = momentLocalizer(moment);
@@ -108,7 +110,9 @@ export default function CalendarGridView({
   events, 
   loading, 
   onSelectEvent, 
-  onSelectSlot 
+  onSelectSlot,
+  onEditEvent,
+  onDeleteEvent
 }: CalendarGridViewProps) {
   if (loading) {
     return (
@@ -126,6 +130,38 @@ export default function CalendarGridView({
       />
     );
   }
+
+  // Custom event component with edit/delete actions
+  const EventComponent = ({ event }: { event: any }) => {
+    const originalEvent = event.resource;
+    return (
+      <div className="flex items-center justify-between w-full text-xs">
+        <span className="truncate flex-1">{event.title}</span>
+        {(onEditEvent || onDeleteEvent) && (
+          <div className="flex gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onEditEvent && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEditEvent(originalEvent); }}
+                className="text-white/80 hover:text-white text-xs p-0.5"
+                title="Edit event"
+              >
+                ✎
+              </button>
+            )}
+            {onDeleteEvent && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDeleteEvent(originalEvent.id); }}
+                className="text-white/80 hover:text-white text-xs p-0.5"
+                title="Delete event"
+              >
+                🗑
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Convert events to calendar format
   const calendarEvents = events.map((event) => ({
@@ -154,6 +190,9 @@ export default function CalendarGridView({
           onSelectSlot={onSelectSlot}
           selectable
           eventPropGetter={eventStyleGetter}
+          components={{
+            event: EventComponent
+          }}
           views={['month', 'week', 'day']}
           defaultView="month"
           popup
@@ -179,6 +218,10 @@ export default function CalendarGridView({
           border-radius: 4px;
           font-size: 12px;
           font-weight: 500;
+        }
+        
+        .calendar-container .rbc-event:hover .opacity-0 {
+          opacity: 1;
         }
         
         .calendar-container .rbc-event:focus {

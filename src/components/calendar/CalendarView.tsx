@@ -73,6 +73,9 @@ export default function CalendarView() {
     canModifyEvent 
   } = useRoleAccess();
   
+  // Simple same-team permission check (SONIQ spec)
+  const canEditDelete = true; // Simplified: any team member can edit/delete (backend enforces team validation)
+  
   console.log("[CalendarView] Roles:", { isCoach, isParent, isPlayer, showCreateButton });
   
   // View mode with coach-first mobile detection
@@ -199,7 +202,8 @@ export default function CalendarView() {
   };
 
   const handleDeleteEvent = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this event?")) return;
+    if (!window.confirm("Delete this event?")) return;
+    console.info('[calendar] delete', { id });
     try {
       const response = await fetch(`/api/calendar/events/${id}`, {
         method: "DELETE",
@@ -580,16 +584,23 @@ export default function CalendarView() {
           loading={loading}
           onSelectEvent={handleSelectEvent}
           onSelectSlot={handleSelectSlot}
+          onEditEvent={canEditDelete ? (event) => {
+            console.info('[calendar] edit', { id: event.id });
+            setEditingEvent(event);
+            setShowForm(true);
+          } : undefined}
+          onDeleteEvent={canEditDelete ? handleDeleteEvent : undefined}
         />
       ) : events.length > 0 ? (
         <CalendarListView
           events={events}
           loading={loading}
-          onEditEvent={showEditControls ? (event) => {
+          onEditEvent={canEditDelete ? (event) => {
+            console.info('[calendar] edit', { id: event.id });
             setEditingEvent(event);
             setShowForm(true);
           } : undefined}
-          onDeleteEvent={showEditControls ? handleDeleteEvent : undefined}
+          onDeleteEvent={canEditDelete ? handleDeleteEvent : undefined}
           onCloneEvent={showEditControls ? handleCloneEvent : undefined}
           onCreateEvent={showCreateButton ? () => {
             setEditingEvent(null);
