@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -133,26 +133,40 @@ export default function CalendarGridView({
 
   // Custom event component with edit/delete actions
   const EventComponent = ({ event }: { event: any }) => {
+    const [showActions, setShowActions] = useState(false);
     const originalEvent = event.resource;
+    
     return (
-      <div className="flex items-center justify-between w-full text-xs">
+      <div 
+        className="flex items-center justify-between w-full text-xs relative"
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
+      >
         <span className="truncate flex-1">{event.title}</span>
-        {(onEditEvent || onDeleteEvent) && (
-          <div className="flex gap-1 ml-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {(onEditEvent || onDeleteEvent) && showActions && (
+          <div className="flex gap-1 ml-1 bg-black/20 rounded px-1">
             {onEditEvent && (
               <button
-                onClick={(e) => { e.stopPropagation(); onEditEvent(originalEvent); }}
-                className="text-white/80 hover:text-white text-xs p-0.5"
-                title="Edit event"
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  e.preventDefault();
+                  onEditEvent(originalEvent); 
+                }}
+                className="text-white hover:text-yellow-200 text-xs p-0.5 hover:bg-white/20 rounded"
+                aria-label="Edit event"
               >
                 ✎
               </button>
             )}
             {onDeleteEvent && (
               <button
-                onClick={(e) => { e.stopPropagation(); onDeleteEvent(originalEvent.id); }}
-                className="text-white/80 hover:text-white text-xs p-0.5"
-                title="Delete event"
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  e.preventDefault();
+                  onDeleteEvent(originalEvent.id); 
+                }}
+                className="text-white hover:text-red-200 text-xs p-0.5 hover:bg-white/20 rounded"
+                aria-label="Delete event"
               >
                 🗑
               </button>
@@ -218,10 +232,6 @@ export default function CalendarGridView({
           border-radius: 4px;
           font-size: 12px;
           font-weight: 500;
-        }
-        
-        .calendar-container .rbc-event:hover .opacity-0 {
-          opacity: 1;
         }
         
         .calendar-container .rbc-event:focus {

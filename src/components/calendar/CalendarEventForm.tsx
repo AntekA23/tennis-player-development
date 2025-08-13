@@ -88,7 +88,24 @@ export default function CalendarEventForm({
             type="datetime-local"
             required
             value={formData.start_time}
-            onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+            onChange={(e) => {
+              const newStartTime = e.target.value;
+              const currentStart = new Date(formData.start_time);
+              const currentEnd = new Date(formData.end_time);
+              const newStart = new Date(newStartTime);
+              
+              // Calculate duration between current start and end
+              const duration = currentEnd.getTime() - currentStart.getTime();
+              
+              // Apply same duration to new start time
+              const newEnd = new Date(newStart.getTime() + duration);
+              
+              setFormData({ 
+                ...formData, 
+                start_time: newStartTime,
+                end_time: newEnd.toISOString().slice(0, 16) // Format for datetime-local
+              });
+            }}
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
