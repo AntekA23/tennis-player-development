@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       start_time: start,
       end_time: end,
       location: body?.location ?? null,
-      activity_type: "sparring", // Simple sparring, not request
+      activity_type: "sparring_request", // Use existing enum value
       created_by: Number(userId),
       team_id: Number(teamId),
     };

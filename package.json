@@ -12,7 +12,8 @@
     "prepare": "husky",
     "db:push": "npx drizzle-kit push",
     "db:generate": "npx drizzle-kit generate",
-    "db:seed": "npx tsx scripts/seed-test-users.ts"
+    "db:seed": "npx tsx scripts/seed-test-users.ts",
+    "validate-db": "npx tsx scripts/validate-db.ts"
   },
   "repository": {
     "type": "git",
