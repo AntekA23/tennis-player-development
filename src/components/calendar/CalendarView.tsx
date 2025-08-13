@@ -63,6 +63,16 @@ export default function CalendarView() {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [prefill, setPrefill] = useState<{ date: string; time: string } | null>(null);
   
+  // Get user from localStorage as fallback
+  const [localUserRole, setLocalUserRole] = useState<string | null>(null);
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      setLocalUserRole(user.role);
+    }
+  }, []);
+  
   // Get user role and permissions
   const { 
     isCoach, 
@@ -73,10 +83,15 @@ export default function CalendarView() {
     canModifyEvent 
   } = useRoleAccess();
   
+  // Use fallback if permissions not loaded
+  const isCoachFallback = isCoach || localUserRole === 'coach';
+  const isParentFallback = isParent || localUserRole === 'parent';
+  
   // Simple same-team permission check (SONIQ spec)
   const canEditDelete = true; // Simplified: any team member can edit/delete (backend enforces team validation)
   
   console.log("[CalendarView] Roles:", { isCoach, isParent, isPlayer, showCreateButton });
+  console.log("[CalendarView] Permissions:", { canEditDelete, showEditControls, canModifyEvent });
   
   // View mode with coach-first mobile detection
   const deviceInfo = isMobileDevice();
@@ -414,9 +429,9 @@ export default function CalendarView() {
       <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">
-            {isCoach && "Team Calendar"}
-            {isParent && "📅 My Child's Schedule"}
-            {isPlayer && "📅 My Tennis Schedule"}
+            {isCoachFallback && "Team Calendar"}
+            {isParentFallback && !isCoachFallback && "📅 My Child's Schedule"}
+            {(isPlayer || (!isCoachFallback && !isParentFallback)) && "📅 My Tennis Schedule"}
           </h2>
           {(isParent || isPlayer) && (
             <p className="text-sm text-gray-600 mt-1">
@@ -454,7 +469,7 @@ export default function CalendarView() {
           }
           
           {/* Role-based action buttons */}
-          {(isCoach || (isParent && showCreateButton)) && (
+          {(isCoachFallback || isParentFallback || showCreateButton) && (
             <button
               onClick={() => {
                 setEditingEvent(null);
@@ -462,7 +477,7 @@ export default function CalendarView() {
               }}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
-              {isCoach ? "Add Event" : "Add Tournament"}
+              {isCoachFallback ? "Add Event" : isParentFallback ? "Add Tournament" : "Add Event"}
             </button>
           )}
           
