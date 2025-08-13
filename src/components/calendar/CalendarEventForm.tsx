@@ -21,6 +21,42 @@ const formatDatetimeLocal = (isoString: string) => {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
+// Local time helpers (no timezone conversion)
+function parseLocal(dt: string): Date {
+  // dt: "YYYY-MM-DDTHH:mm"
+  const [d, t] = dt.split('T');
+  const [Y, M, D] = d.split('-').map(Number);
+  const [h, m] = t.split(':').map(Number);
+  return new Date(Y, (M - 1), D, h, m, 0, 0); // local time
+}
+
+function formatLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const Y = d.getFullYear();
+  const M = pad(d.getMonth() + 1);
+  const D = pad(d.getDate());
+  const h = pad(d.getHours());
+  const m = pad(d.getMinutes());
+  return `${Y}-${M}-${D}T${h}:${m}`;
+}
+
+function toIsoUtc(dt: string): string {
+  const d = parseLocal(dt);
+  return new Date(
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), 0, 0)
+  ).toISOString();
+}
+
+const MAX_DURATION = 12 * 60 * 60 * 1000;
+const DEFAULT_DURATION = 90 * 60 * 1000;
+
+function safeDurationMs(startStr: string, endStr: string) {
+  const s = parseLocal(startStr).getTime();
+  const e = parseLocal(endStr).getTime();
+  const d = e - s;
+  return (d > 0 && d <= MAX_DURATION) ? d : DEFAULT_DURATION;
+}
+
 export default function CalendarEventForm({
   onSubmit,
   onCancel,
@@ -49,7 +85,15 @@ export default function CalendarEventForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    // Convert local datetime strings to UTC ISO for API
+    const submitData = {
+      ...formData,
+      start_time: toIsoUtc(formData.start_time),
+      end_time: toIsoUtc(formData.end_time),
+    };
+    
+    onSubmit(submitData);
   };
 
   return (
@@ -109,39 +153,30 @@ export default function CalendarEventForm({
             required
             value={formData.start_time}
             onChange={(e) => {
-              const newStartTime = e.target.value;
+              const newStartStr = e.target.value;
               
-              if (!newStartTime || !formData.start_time || !formData.end_time) {
-                // If any value is missing, just update start time
-                setFormData({ ...formData, start_time: newStartTime });
+              if (!newStartStr || !formData.start_time || !formData.end_time) {
+                setFormData({ ...formData, start_time: newStartStr });
                 return;
               }
               
-              try {
-                const currentStart = new Date(formData.start_time);
-                const currentEnd = new Date(formData.end_time);
-                const newStart = new Date(newStartTime);
-                
-                // Calculate duration between current start and end (in milliseconds)
-                const duration = currentEnd.getTime() - currentStart.getTime();
-                
-                // Only auto-sync if duration is positive (valid) and reasonable (< 24 hours)
-                if (duration > 0 && duration < 24 * 60 * 60 * 1000) {
-                  const newEnd = new Date(newStart.getTime() + duration);
-                  
-                  setFormData({ 
-                    ...formData, 
-                    start_time: newStartTime,
-                    end_time: newEnd.toISOString().slice(0, 16)
-                  });
-                } else {
-                  // If duration is invalid, just update start time and let user fix end time
-                  setFormData({ ...formData, start_time: newStartTime });
-                }
-              } catch (error) {
-                // If date parsing fails, just update start time
-                setFormData({ ...formData, start_time: newStartTime });
-              }
+              // START change handler - preserve duration
+              const dur = safeDurationMs(formData.start_time, formData.end_time);
+              const startMS = parseLocal(newStartStr).getTime();
+              const newEnd = new Date(startMS + dur);
+              
+              console.info('[calendar] times', { 
+                startStr: newStartStr, 
+                endStr: formatLocal(newEnd), 
+                startMS, 
+                durMS: dur 
+              });
+              
+              setFormData(f => ({ 
+                ...f, 
+                start_time: newStartStr, 
+                end_time: formatLocal(newEnd) 
+              }));
             }}
             className="w-full px-3 py-2 border rounded-md"
           />
@@ -153,7 +188,24 @@ export default function CalendarEventForm({
             type="datetime-local"
             required
             value={formData.end_time}
-            onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+            onChange={(e) => {
+              const newEndStr = e.target.value;
+              
+              if (!newEndStr || !formData.start_time) {
+                setFormData({ ...formData, end_time: newEndStr });
+                return;
+              }
+              
+              // END change handler - validate end >= start
+              const startMS = parseLocal(formData.start_time).getTime();
+              let endMS = parseLocal(newEndStr).getTime();
+              if (endMS <= startMS) endMS = startMS + DEFAULT_DURATION;
+              
+              setFormData(f => ({ 
+                ...f, 
+                end_time: formatLocal(new Date(endMS)) 
+              }));
+            }}
             className="w-full px-3 py-2 border rounded-md"
           />
         </div>
