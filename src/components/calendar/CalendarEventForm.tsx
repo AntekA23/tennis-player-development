@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRoleAccess } from "@/contexts/UserContext";
 
 interface CalendarEventFormProps {
   onSubmit: (data: any) => void;
@@ -25,10 +26,20 @@ export default function CalendarEventForm({
   onCancel,
   initialData,
 }: CalendarEventFormProps) {
+  const { isCoach, isParent, isPlayer, permissions } = useRoleAccess();
+  
+  // Get default activity type based on role
+  const getDefaultActivityType = () => {
+    if (initialData?.activity_type) return initialData.activity_type;
+    if (isParent) return "tournament";
+    if (isPlayer) return "sparring_request";
+    return "practice"; // coach default
+  };
+
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     description: initialData?.description || "",
-    activity_type: initialData?.activity_type || "practice",
+    activity_type: getDefaultActivityType(),
     start_time: formatDatetimeLocal(initialData?.start_time || ""),
     end_time: formatDatetimeLocal(initialData?.end_time || ""),
     location: initialData?.location || "",
@@ -72,12 +83,21 @@ export default function CalendarEventForm({
           onChange={(e) => setFormData({ ...formData, activity_type: e.target.value })}
           className="w-full px-3 py-2 border rounded-md"
         >
-          <option value="practice">Practice</option>
-          <option value="gym">Gym</option>
-          <option value="match">Match</option>
-          <option value="tournament">Tournament</option>
-          <option value="education">Education</option>
-          <option value="sparring_request">Sparring Request</option>
+          {isCoach && (
+            <>
+              <option value="practice">Practice</option>
+              <option value="gym">Gym</option>
+              <option value="match">Match</option>
+              <option value="tournament">Tournament</option>
+              <option value="education">Education</option>
+            </>
+          )}
+          {isParent && (
+            <option value="tournament">Tournament</option>
+          )}
+          {isPlayer && (
+            <option value="sparring_request">Sparring Request</option>
+          )}
         </select>
       </div>
 

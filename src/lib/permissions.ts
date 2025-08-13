@@ -69,8 +69,11 @@ export async function canCreateEvent(
       return { allowed: true };
       
     case 'parent':
-      // Parents cannot create any events directly (only requests)
-      return { allowed: false, reason: 'Parents cannot create events. Use request system instead.' };
+      // Parents can create tournaments for their children
+      if (activityType === 'tournament') {
+        return { allowed: true };
+      }
+      return { allowed: false, reason: 'Parents can only create tournaments. Use request system for other events.' };
       
     case 'player':
       // Players can only create sparring requests
@@ -283,10 +286,10 @@ export async function getUserPermissions(
     case 'parent':
       return {
         role: 'parent',
-        canCreateEvents: false,
+        canCreateEvents: true, // Can create tournaments
         canModifyEvents: false,
         canViewAllEvents: false, // Only child's events
-        allowedEventTypes: [], // Cannot create directly
+        allowedEventTypes: ['tournament'], // Can create tournaments
       };
       
     case 'player':

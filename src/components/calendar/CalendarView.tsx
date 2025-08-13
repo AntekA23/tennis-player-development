@@ -448,7 +448,7 @@ export default function CalendarView() {
           }
           
           {/* Role-based action buttons */}
-          {isCoach && (
+          {(isCoach || (isParent && showCreateButton)) && (
             <button
               onClick={() => {
                 setEditingEvent(null);
@@ -456,7 +456,7 @@ export default function CalendarView() {
               }}
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
-              Add Event
+              {isCoach ? "Add Event" : "Add Tournament"}
             </button>
           )}
           
