@@ -172,14 +172,25 @@ export default function CalendarView() {
     if (!editingEvent) return;
     try {
       const response = await fetch(`/api/calendar/events/${editingEvent.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          title: data.title,
+          description: data.description,
+          location: data.location,
+          startISO: data.start_time,
+          endISO: data.end_time,
+        }),
       });
-      if (!response.ok) throw new Error("Failed to update event");
+      
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || "Failed to update event");
+      
       setEditingEvent(null);
       setShowForm(false);
       fetchEvents();
+      setMessage('✅ Event updated successfully');
+      setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update event");
     }
@@ -191,8 +202,13 @@ export default function CalendarView() {
       const response = await fetch(`/api/calendar/events/${id}`, {
         method: "DELETE",
       });
-      if (!response.ok) throw new Error("Failed to delete event");
+      
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || "Failed to delete event");
+      
       fetchEvents();
+      setMessage('✅ Event deleted successfully');
+      setTimeout(() => setMessage(null), 3000);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete event");
     }
