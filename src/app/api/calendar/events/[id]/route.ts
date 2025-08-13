@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { calendarEvents } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
-export async function PATCH(
+export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -12,54 +12,61 @@ export async function PATCH(
     const { id } = await params;
     const eventId = parseInt(id);
     if (isNaN(eventId)) {
-      return NextResponse.json({ ok: false, error: "Invalid event ID" }, { status: 400 });
-    }
-
-    const body = await req.json();
-    const { title, description, location, startISO, endISO } = body;
-
-    // Validate times if both provided
-    if (startISO && endISO) {
-      const start = new Date(startISO);
-      const end = new Date(endISO);
-      if (isNaN(+start) || isNaN(+end) || end <= start) {
-        return NextResponse.json({ ok: false, error: "Invalid time range" }, { status: 400 });
-      }
+      return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
     }
 
     const cookieStore = await cookies();
+    const userId = cookieStore.get("userId")?.value;
     const teamId = Number(cookieStore.get("teamId")?.value);
-    if (!teamId) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    
+    if (!userId || !teamId) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    // Build update object with only provided fields
-    const updates: any = {};
-    if (title !== undefined) updates.title = title;
-    if (description !== undefined) updates.description = description;
-    if (location !== undefined) updates.location = location;
-    if (startISO) updates.start_time = new Date(startISO);
-    if (endISO) updates.end_time = new Date(endISO);
-
-    // Update only if event belongs to the same team
-    const [updatedEvent] = await db
-      .update(calendarEvents)
-      .set(updates)
+    // Check if event exists and user is on same team
+    const [existingEvent] = await db
+      .select()
+      .from(calendarEvents)
       .where(and(
         eq(calendarEvents.id, eventId),
         eq(calendarEvents.team_id, teamId)
-      ))
-      .returning({ id: calendarEvents.id });
+      ));
 
-    if (!updatedEvent) {
-      return NextResponse.json({ ok: false, error: "Event not found or access denied" }, { status: 404 });
+    if (!existingEvent) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    console.log(`[events.patch] id=${eventId} team=${teamId}`);
-    return NextResponse.json({ ok: true, id: updatedEvent.id });
+    const body = await req.json();
+    const { title, description, location, start_time, end_time } = body;
+
+    // Validate times if provided
+    if (start_time && end_time) {
+      const start = new Date(start_time);
+      const end = new Date(end_time);
+      if (isNaN(+start) || isNaN(+end) || end <= start) {
+        return NextResponse.json({ error: "Invalid time range" }, { status: 400 });
+      }
+    }
+
+    // Build update object with only provided fields (minimal approach)
+    const updates: any = { updated_at: new Date() };
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (location !== undefined) updates.location = location;
+    if (start_time) updates.start_time = new Date(start_time);
+    if (end_time) updates.end_time = new Date(end_time);
+
+    const [updatedEvent] = await db
+      .update(calendarEvents)
+      .set(updates)
+      .where(eq(calendarEvents.id, eventId))
+      .returning();
+
+    console.log(`[events.edit] id=${eventId} team=${teamId} user=${userId}`);
+    return NextResponse.json({ event: updatedEvent });
   } catch (error) {
-    console.error("[events.patch][error]", error);
-    return NextResponse.json({ ok: false, error: "Server error" }, { status: 500 });
+    console.error("Error updating calendar event:", error);
+    return NextResponse.json({ error: "Failed to update event" }, { status: 500 });
   }
 }
 
@@ -71,32 +78,37 @@ export async function DELETE(
     const { id } = await params;
     const eventId = parseInt(id);
     if (isNaN(eventId)) {
-      return NextResponse.json({ ok: false, error: "Invalid event ID" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
     }
 
     const cookieStore = await cookies();
+    const userId = cookieStore.get("userId")?.value;
     const teamId = Number(cookieStore.get("teamId")?.value);
-    if (!teamId) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    
+    if (!userId || !teamId) {
+      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    // Delete only if event belongs to the same team
-    const [deletedEvent] = await db
-      .delete(calendarEvents)
+    // Check if event exists and user is on same team  
+    const [existingEvent] = await db
+      .select()
+      .from(calendarEvents)
       .where(and(
         eq(calendarEvents.id, eventId),
         eq(calendarEvents.team_id, teamId)
-      ))
-      .returning({ id: calendarEvents.id });
+      ));
 
-    if (!deletedEvent) {
-      return NextResponse.json({ ok: false, error: "Event not found or access denied" }, { status: 404 });
+    if (!existingEvent) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    console.log(`[events.delete] id=${eventId} team=${teamId}`);
-    return NextResponse.json({ ok: true, id: deletedEvent.id });
+    // Delete the event
+    await db.delete(calendarEvents).where(eq(calendarEvents.id, eventId));
+
+    console.log(`[events.delete] id=${eventId} team=${teamId} user=${userId}`);
+    return NextResponse.json({ message: "Event deleted successfully" });
   } catch (error) {
-    console.error("[events.delete][error]", error);
-    return NextResponse.json({ ok: false, error: "Server error" }, { status: 500 });
+    console.error("Error deleting calendar event:", error);
+    return NextResponse.json({ error: "Failed to delete event" }, { status: 500 });
   }
 }
