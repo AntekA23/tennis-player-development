@@ -1,40 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { calendarEvents } from "@/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, asc } from "drizzle-orm";
 import { cookies } from "next/headers";
-import { canCreateEvent, getVisibleEvents, type ActivityType } from "@/lib/permissions";
+import { canCreateEvent, type ActivityType } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
-    const cookieStore = await cookies();
-    const userId = cookieStore.get("userId")?.value;
-    const teamId = cookieStore.get("teamId")?.value;
-
-    if (!userId || !teamId) {
-      return NextResponse.json(
-        { error: "Not authenticated" },
-        { status: 401 }
-      );
+    const ck = await cookies();
+    const teamId = Number(ck.get("teamId")?.value);
+    
+    // If no teamId, return empty events with debug info
+    if (!teamId) {
+      return NextResponse.json({ 
+        events: [], 
+        meta: { teamId: null, count: 0, debug: "No teamId in cookies" }
+      });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const startDate = searchParams.get("start");
-    const endDate = searchParams.get("end");
+    // Simple date range: last 30 days to next 60 days
+    const start = new Date(); 
+    start.setDate(start.getDate() - 30);
+    const end = new Date(); 
+    end.setDate(end.getDate() + 60);
 
-    // Use role-based event filtering
-    const events = await getVisibleEvents(
-      userId,
-      teamId,
-      startDate ? new Date(startDate) : undefined,
-      endDate ? new Date(endDate) : undefined
-    );
+    console.log(`[Events API] Fetching for teamId=${teamId}, range=${start.toISOString()} to ${end.toISOString()}`);
 
-    return NextResponse.json({ events });
+    // Get ALL events for this team in date range (no role filtering)
+    const events = await db.select().from(calendarEvents)
+      .where(and(
+        eq(calendarEvents.team_id, teamId),
+        gte(calendarEvents.start_time, start),
+        lte(calendarEvents.start_time, end)
+      ))
+      .orderBy(asc(calendarEvents.start_time));
+
+    console.log(`[Events API] Found ${events.length} events`);
+
+    return NextResponse.json({ 
+      events, 
+      meta: { teamId, count: events.length, dateRange: { start, end } }
+    });
   } catch (error) {
     console.error("Error fetching calendar events:", error);
     return NextResponse.json(
-      { error: "Failed to fetch events" },
+      { error: "Failed to fetch events", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }

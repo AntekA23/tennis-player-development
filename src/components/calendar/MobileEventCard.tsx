@@ -65,6 +65,11 @@ export default function MobileEventCard({
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <span className="text-lg flex-shrink-0">{getActivityEmoji(event.activity_type)}</span>
                 <h4 className="font-semibold text-base truncate">{event.title}</h4>
+                {event.activity_type === 'sparring_request' && (
+                  <span className="bg-orange-100 text-orange-700 text-xs px-2 py-1 rounded-full font-medium">
+                    Sparring
+                  </span>
+                )}
               </div>
               
               <div className="flex items-center gap-2 flex-shrink-0">

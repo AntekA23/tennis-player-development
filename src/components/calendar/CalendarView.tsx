@@ -8,6 +8,7 @@ import MobileCoachView from "./MobileCoachView";
 import RescheduleModal from "./RescheduleModal";
 import ParentRequestForm from "./ParentRequestForm";
 import SparringRequestForm from "./SparringRequestForm";
+import SparringQuickAddModal from "./SparringQuickAddModal";
 import { useRoleAccess } from "@/contexts/UserContext";
 
 interface CalendarEvent {
@@ -54,6 +55,8 @@ export default function CalendarView() {
   const [reschedulingEvent, setReschedulingEvent] = useState<CalendarEvent | null>(null);
   const [showParentRequestForm, setShowParentRequestForm] = useState(false);
   const [showSparringRequestForm, setShowSparringRequestForm] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [prefill, setPrefill] = useState<{ date: string; time: string } | null>(null);
   
   // Get user role and permissions
   const { 
@@ -64,6 +67,8 @@ export default function CalendarView() {
     showEditControls,
     canModifyEvent 
   } = useRoleAccess();
+  
+  console.log("[CalendarView] Roles:", { isCoach, isParent, isPlayer, showCreateButton });
   
   // View mode with coach-first mobile detection
   const deviceInfo = isMobileDevice();
@@ -133,8 +138,10 @@ export default function CalendarView() {
       const response = await fetch("/api/calendar/events");
       if (!response.ok) throw new Error("Failed to fetch events");
       const data = await response.json();
+      console.log("[CalendarView] Fetched events:", data.events);
       setEvents(data.events || []);
     } catch (err) {
+      console.error("[CalendarView] Error fetching events:", err);
       setError(err instanceof Error ? err.message : "Failed to load events");
     } finally {
       setLoading(false);
@@ -441,6 +448,21 @@ export default function CalendarView() {
             <span>🎾</span>
             Log Sparring
           </button>
+          
+          {/* Quick Add Sparring */}
+          <button
+            onClick={() => {
+              // TODO: Use proper date source from calendar view when available
+              const today = new Date();
+              const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+              const timeStr = '18:00'; // Default to 6 PM
+              setPrefill({ date: dateStr, time: timeStr });
+              setQuickAddOpen(true);
+            }}
+            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+          >
+            Quick Add Sparring
+          </button>
         </div>
       </div>
 
@@ -484,51 +506,75 @@ export default function CalendarView() {
         />
       )}
 
-      {/* Render appropriate view based on device and selection */}
-      {viewMode === 'calendar' && isCoach ? (
-        <CalendarGridView
+      <SparringQuickAddModal
+        open={quickAddOpen}
+        onClose={() => setQuickAddOpen(false)}
+        initialDate={prefill?.date}
+        initialTime={prefill?.time}
+        onConfirm={async (payload) => {
+          try {
+            // Convert date and time to UTC ISO string
+            const startDate = new Date(`${payload.date}T${payload.time}:00`);
+            const endDate = new Date(startDate.getTime() + 90 * 60 * 1000); // 90 minutes default
+            
+            const response = await fetch('/api/calendar/sparring/quick-add', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: payload.notes ? `Sparring - ${payload.notes}` : 'Sparring',
+                notes: payload.notes,
+                startISO: startDate.toISOString(),
+                endISO: endDate.toISOString(),
+                location: payload.location,
+              }),
+            });
+            
+            if (!response.ok) {
+              const err = await response.json().catch(() => ({}));
+              throw new Error(err?.error || 'Request failed');
+            }
+            
+            const result = await response.json();
+            console.log('[quick-add-sparring] Created event', result.id);
+            setQuickAddOpen(false);
+            fetchEvents(); // Refresh calendar
+            setMessage('Sparring session added successfully');
+            setTimeout(() => setMessage(null), 3000);
+          } catch (error) {
+            console.error('Quick add error:', error);
+            alert('Failed to add sparring session');
+          }
+        }}
+      />
+
+      {/* Simplified render logic - always show something */}
+      
+      {events.length > 0 ? (
+        <CalendarListView
           events={events}
           loading={loading}
-          onSelectEvent={handleSelectEvent}
-          onSelectSlot={handleSelectSlot}
+          onEditEvent={showEditControls ? (event) => {
+            setEditingEvent(event);
+            setShowForm(true);
+          } : undefined}
+          onDeleteEvent={showEditControls ? handleDeleteEvent : undefined}
+          onCloneEvent={showEditControls ? handleCloneEvent : undefined}
+          onCreateEvent={showCreateButton ? () => {
+            setEditingEvent(null);
+            setShowForm(true);
+          } : undefined}
         />
       ) : (
-        // Use mobile-optimized view for phones, standard list for tablets/desktop
-        deviceInfo.isMobile && deviceInfo.device === 'phone' ? (
-          <MobileCoachView
-            events={events}
-            loading={loading}
-            onEditEvent={showEditControls ? (event) => {
-              setEditingEvent(event);
-              setShowForm(true);
-            } : undefined}
-            onDeleteEvent={showEditControls ? handleDeleteEvent : undefined}
-            onCloneEvent={showEditControls ? handleCloneEvent : undefined}
-            onRescheduleEvent={showEditControls ? handleRescheduleEvent : undefined}
-            onCreateEvent={showCreateButton ? () => {
-              setEditingEvent(null);
-              setShowForm(true);
-            } : undefined}
-            onApproveSparring={isCoach ? handleApproveSparring : undefined}
-            onDeclineSparring={isCoach ? handleDeclineSparring : undefined}
-            userRole={isCoach ? 'coach' : isParent ? 'parent' : 'player'}
-          />
-        ) : (
-          <CalendarListView
-            events={events}
-            loading={loading}
-            onEditEvent={showEditControls ? (event) => {
-              setEditingEvent(event);
-              setShowForm(true);
-            } : undefined}
-            onDeleteEvent={showEditControls ? handleDeleteEvent : undefined}
-            onCloneEvent={showEditControls ? handleCloneEvent : undefined}
-            onCreateEvent={showCreateButton ? () => {
-              setEditingEvent(null);
-              setShowForm(true);
-            } : undefined}
-          />
-        )
+        <div className="text-center py-8 bg-gray-50 rounded-lg">
+          <div className="text-gray-500">
+            <div className="text-6xl mb-4">📅</div>
+            <h3 className="text-lg font-medium mb-2">No events scheduled</h3>
+            <p className="text-sm mb-4">No events to display</p>
+            <div className="text-xs text-gray-400">
+              Debug: {events.length} events loaded
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
