@@ -1,4 +1,5 @@
-import { pgTable, serial, varchar, integer, timestamp, text, pgEnum, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, integer, timestamp, text, pgEnum, boolean, pgView } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -78,15 +79,73 @@ export const eventParticipants = pgTable("event_participants", {
   id: serial("id").primaryKey(),
   event_id: integer("event_id").notNull().references(() => calendarEvents.id),
   user_id: integer("user_id").notNull().references(() => users.id),
+  role: varchar("role", { length: 32 }).notNull().default('player'), // 'player', 'coach', 'observer'
   status: varchar("status", { length: 32 }).notNull().default('confirmed'), // 'confirmed', 'tentative', 'declined'
   created_at: timestamp("created_at").notNull().defaultNow(),
+  updated_at: timestamp("updated_at").notNull().defaultNow(),
 });
+
+// Training sessions table for logging practice attendance and performance
+export const trainingSessions = pgTable("training_sessions", {
+  id: serial("id").primaryKey(),
+  event_id: integer("event_id").notNull().references(() => calendarEvents.id),
+  player_id: integer("player_id").notNull().references(() => users.id),
+  attendance_status: varchar("attendance_status", { length: 32 }).notNull(), // 'present', 'absent', 'late'
+  performance_rating: integer("performance_rating"), // 1-10 scale, nullable
+  notes: text("notes"),
+  logged_by: integer("logged_by").notNull().references(() => users.id),
+  created_at: timestamp("created_at").notNull().defaultNow(),
+  updated_at: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Match results table for tracking sparring and match outcomes
+export const matchResults = pgTable("match_results", {
+  id: serial("id").primaryKey(),
+  event_id: integer("event_id").notNull().references(() => calendarEvents.id),
+  player1_id: integer("player1_id").notNull().references(() => users.id),
+  player2_id: integer("player2_id").notNull().references(() => users.id),
+  winner_id: integer("winner_id").references(() => users.id), // nullable for draws
+  score_text: varchar("score_text", { length: 255 }).notNull(), // e.g., "6-4 6-2" or "6-4 3-6 6-3"
+  notes: text("notes"),
+  logged_by: integer("logged_by").notNull().references(() => users.id),
+  created_at: timestamp("created_at").notNull().defaultNow(),
+  updated_at: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Player basic stats view - computed from match_results
+export const playerBasicStats = pgView("player_basic_stats", {
+  player_id: integer("player_id"),
+  total_matches: integer("total_matches"),
+  wins: integer("wins"),
+  win_rate: integer("win_rate"), // percentage as integer (e.g., 75 for 75%)
+  last_match_date: timestamp("last_match_date", { withTimezone: true }),
+}).as(sql`
+  SELECT 
+    player_id,
+    COUNT(*) as total_matches,
+    COUNT(CASE WHEN winner_id = player_id THEN 1 END) as wins,
+    ROUND(
+      COUNT(CASE WHEN winner_id = player_id THEN 1 END)::numeric / 
+      NULLIF(COUNT(*), 0) * 100
+    )::integer as win_rate,
+    MAX(start_time) as last_match_date
+  FROM (
+    SELECT player1_id as player_id, winner_id, start_time FROM match_results mr 
+    JOIN calendar_events ce ON mr.event_id = ce.id
+    UNION ALL
+    SELECT player2_id as player_id, winner_id, start_time FROM match_results mr 
+    JOIN calendar_events ce ON mr.event_id = ce.id
+  ) player_matches
+  GROUP BY player_id
+`);
 
 // Calendar events relations
 export const calendarEventsRelations = relations(calendarEvents, ({ one, many }) => ({
   team: one(teams, { fields: [calendarEvents.team_id], references: [teams.id] }),
   creator: one(users, { fields: [calendarEvents.created_by], references: [users.id] }),
   participants: many(eventParticipants),
+  trainingSessions: many(trainingSessions),
+  matchResults: many(matchResults),
 }));
 
 // Parent-child relations
@@ -99,4 +158,20 @@ export const parentChildRelations = relations(parentChild, ({ one }) => ({
 export const eventParticipantsRelations = relations(eventParticipants, ({ one }) => ({
   event: one(calendarEvents, { fields: [eventParticipants.event_id], references: [calendarEvents.id] }),
   user: one(users, { fields: [eventParticipants.user_id], references: [users.id] }),
+}));
+
+// Training sessions relations
+export const trainingSessionsRelations = relations(trainingSessions, ({ one }) => ({
+  event: one(calendarEvents, { fields: [trainingSessions.event_id], references: [calendarEvents.id] }),
+  player: one(users, { fields: [trainingSessions.player_id], references: [users.id] }),
+  logger: one(users, { fields: [trainingSessions.logged_by], references: [users.id] }),
+}));
+
+// Match results relations
+export const matchResultsRelations = relations(matchResults, ({ one }) => ({
+  event: one(calendarEvents, { fields: [matchResults.event_id], references: [calendarEvents.id] }),
+  player1: one(users, { fields: [matchResults.player1_id], references: [users.id] }),
+  player2: one(users, { fields: [matchResults.player2_id], references: [users.id] }),
+  winner: one(users, { fields: [matchResults.winner_id], references: [users.id] }),
+  logger: one(users, { fields: [matchResults.logged_by], references: [users.id] }),
 }));
