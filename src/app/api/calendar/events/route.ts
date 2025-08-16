@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { calendarEvents } from "@/db/schema";
+import { calendarEvents, eventParticipants } from "@/db/schema";
 import { eq, and, gte, lte, asc } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { canCreateEvent, type ActivityType } from "@/lib/permissions";
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern } = body;
+    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants } = body;
 
     if (!title || !activity_type || !start_time || !end_time) {
       return NextResponse.json(
@@ -116,6 +116,20 @@ export async function POST(request: NextRequest) {
       recurrence_pattern: recurrence_pattern || null,
       original_event_id: null, // Will be set when cloning
     }).returning();
+
+    // Add participants if provided
+    if (participants && Array.isArray(participants) && participants.length > 0) {
+      const participantValues = participants.map((p: any) => ({
+        event_id: newEvent.id,
+        user_id: p.user_id,
+        role: p.role || 'player',
+        status: 'confirmed',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }));
+
+      await db.insert(eventParticipants).values(participantValues);
+    }
 
     return NextResponse.json({ event: newEvent }, { status: 201 });
   } catch (error) {

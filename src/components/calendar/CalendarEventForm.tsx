@@ -57,6 +57,22 @@ function safeDurationMs(startStr: string, endStr: string) {
   return (d > 0 && d <= MAX_DURATION) ? d : DEFAULT_DURATION;
 }
 
+interface TeamMember {
+  id: number;
+  user_id: number;
+  role: string;
+  status: string;
+  user: {
+    email: string;
+  };
+}
+
+interface Participant {
+  user_id: number;
+  role: 'player' | 'coach';
+  email: string;
+}
+
 export default function CalendarEventForm({
   onSubmit,
   onCancel,
@@ -71,6 +87,17 @@ export default function CalendarEventForm({
     if (userData) {
       const user = JSON.parse(userData);
       setLocalUserRole(user.role);
+      
+      // Fetch team members for participant selection
+      fetch(`/api/teams/details?userId=${user.id}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.team?.members) {
+            setTeamMembers(data.team.members);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoadingMembers(false));
     }
   }, []);
   
@@ -98,6 +125,10 @@ export default function CalendarEventForm({
     recurrence_pattern: initialData?.recurrence_pattern || "",
   });
 
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -106,6 +137,7 @@ export default function CalendarEventForm({
       ...formData,
       start_time: toIsoUtc(formData.start_time),
       end_time: toIsoUtc(formData.end_time),
+      participants: selectedParticipants,
     };
     
     onSubmit(submitData);
@@ -234,6 +266,62 @@ export default function CalendarEventForm({
           onChange={(e) => setFormData({ ...formData, location: e.target.value })}
           className="w-full px-3 py-2 border rounded-md"
         />
+      </div>
+
+      {/* Participants Section */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Participants</label>
+        {loadingMembers ? (
+          <div className="text-sm text-gray-500">Loading team members...</div>
+        ) : (
+          <div className="space-y-2">
+            {teamMembers.filter(member => member.status === 'accepted').map((member) => {
+              const isSelected = selectedParticipants.some(p => p.user_id === member.user_id);
+              const participant = selectedParticipants.find(p => p.user_id === member.user_id);
+              
+              return (
+                <div key={member.user_id} className="flex items-center gap-3 p-2 border rounded">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedParticipants(prev => [...prev, {
+                          user_id: member.user_id,
+                          role: 'player',
+                          email: member.user.email
+                        }]);
+                      } else {
+                        setSelectedParticipants(prev => prev.filter(p => p.user_id !== member.user_id));
+                      }
+                    }}
+                    className="rounded"
+                  />
+                  <span className="flex-1 text-sm">{member.user.email}</span>
+                  {isSelected && (
+                    <select
+                      value={participant?.role || 'player'}
+                      onChange={(e) => {
+                        setSelectedParticipants(prev => prev.map(p => 
+                          p.user_id === member.user_id 
+                            ? { ...p, role: e.target.value as 'player' | 'coach' }
+                            : p
+                        ));
+                      }}
+                      className="text-xs border rounded px-2 py-1"
+                    >
+                      <option value="player">Player</option>
+                      <option value="coach">Coach</option>
+                    </select>
+                  )}
+                </div>
+              );
+            })}
+            {teamMembers.filter(member => member.status === 'accepted').length === 0 && (
+              <div className="text-sm text-gray-500">No team members available</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-4">
