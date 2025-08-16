@@ -127,6 +127,12 @@ export default function CalendarEventForm({
   // Filter team members based on activity type
   const getFilteredMembers = () => {
     const allowedRoles = getAllowedRoles(formData.activity_type);
+    console.log('[DEBUG] Filtering members:', {
+      activityType: formData.activity_type,
+      allowedRoles,
+      allMembers: teamMembers.map(m => ({ email: m.user.email, role: m.role, status: m.status }))
+    });
+    
     return teamMembers.filter(member => 
       member.status === 'accepted' && allowedRoles.includes(member.role)
     );
@@ -256,12 +262,13 @@ export default function CalendarEventForm({
               <option value="practice">Practice</option>
               <option value="gym">Gym</option>
               <option value="match">Match</option>
+            </>
+          )}
+          {isParentFallback && (
+            <>
               <option value="tournament">Tournament</option>
               <option value="education">Education</option>
             </>
-          )}
-          {isParentFallback && !isCoachFallback && (
-            <option value="tournament">Tournament</option>
           )}
           {isPlayerFallback && !isCoachFallback && !isParentFallback && (
             <option value="sparring_request">Sparring Request</option>
