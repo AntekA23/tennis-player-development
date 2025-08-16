@@ -69,7 +69,7 @@ interface TeamMember {
 
 interface Participant {
   user_id: number;
-  role: 'player' | 'coach';
+  role: 'player' | 'coach' | 'parent';
   email: string;
 }
 
@@ -105,6 +105,83 @@ export default function CalendarEventForm({
   const isCoachFallback = isCoach || localUserRole === 'coach';
   const isParentFallback = isParent || localUserRole === 'parent';
   const isPlayerFallback = isPlayer || localUserRole === 'player';
+
+  // Activity type role restrictions
+  const getAllowedRoles = (activityType: string): string[] => {
+    switch (activityType) {
+      case 'education':
+        return ['parent', 'player'];
+      case 'practice':
+      case 'gym':
+        return ['player', 'coach'];
+      case 'match':
+      case 'sparring_request':
+        return ['player'];
+      case 'tournament':
+        return ['parent', 'player', 'coach'];
+      default:
+        return ['player', 'coach'];
+    }
+  };
+
+  // Filter team members based on activity type
+  const getFilteredMembers = () => {
+    const allowedRoles = getAllowedRoles(formData.activity_type);
+    return teamMembers.filter(member => 
+      member.status === 'accepted' && allowedRoles.includes(member.role)
+    );
+  };
+
+  // Handle activity type change with participant validation
+  const handleActivityTypeChange = (newType: string) => {
+    const allowedRoles = getAllowedRoles(newType);
+    const invalidParticipants = selectedParticipants.filter(p => !allowedRoles.includes(p.role));
+    
+    if (invalidParticipants.length > 0) {
+      const invalidEmails = invalidParticipants.map(p => p.email).join(', ');
+      if (window.confirm(`These participants aren't allowed for ${newType}: ${invalidEmails}. Remove them?`)) {
+        setSelectedParticipants(prev => prev.filter(p => allowedRoles.includes(p.role)));
+      } else {
+        return; // Don't change activity type
+      }
+    }
+    
+    // Update activity type and recalculate end time if start time is set
+    let updatedData = { ...formData, activity_type: newType };
+    if (formData.start_time) {
+      updatedData.end_time = calculateEndTime(formData.start_time, newType);
+    }
+    
+    setFormData(updatedData);
+  };
+
+  // Calculate smart end time based on activity type
+  const calculateEndTime = (startTime: string, activityType: string): string => {
+    if (!startTime) return '';
+    
+    const start = parseLocal(startTime);
+    let durationMs: number;
+    
+    switch (activityType) {
+      case 'practice':
+      case 'gym':
+      case 'education':
+        durationMs = 60 * 60 * 1000; // 60 minutes
+        break;
+      case 'match':
+      case 'sparring_request':
+        durationMs = 90 * 60 * 1000; // 90 minutes
+        break;
+      case 'tournament':
+        durationMs = 2 * 24 * 60 * 60 * 1000; // 2 days (National default)
+        break;
+      default:
+        durationMs = 60 * 60 * 1000; // 60 minutes default
+    }
+    
+    const end = new Date(start.getTime() + durationMs);
+    return formatLocal(end);
+  };
   
   // Get default activity type based on role
   const getDefaultActivityType = () => {
@@ -171,7 +248,7 @@ export default function CalendarEventForm({
         <select
           required
           value={formData.activity_type}
-          onChange={(e) => setFormData({ ...formData, activity_type: e.target.value })}
+          onChange={(e) => handleActivityTypeChange(e.target.value)}
           className="w-full px-3 py-2 border rounded-md"
         >
           {isCoachFallback && (
@@ -202,28 +279,14 @@ export default function CalendarEventForm({
             onChange={(e) => {
               const newStartStr = e.target.value;
               
-              if (!newStartStr || !formData.start_time || !formData.end_time) {
-                setFormData({ ...formData, start_time: newStartStr });
-                return;
-              }
+              // Smart end time calculation based on activity type
+              const newEndStr = newStartStr ? calculateEndTime(newStartStr, formData.activity_type) : '';
               
-              // START change handler - preserve duration
-              const dur = safeDurationMs(formData.start_time, formData.end_time);
-              const startMS = parseLocal(newStartStr).getTime();
-              const newEnd = new Date(startMS + dur);
-              
-              console.info('[calendar] times', { 
-                startStr: newStartStr, 
-                endStr: formatLocal(newEnd), 
-                startMS, 
-                durMS: dur 
+              setFormData({ 
+                ...formData, 
+                start_time: newStartStr,
+                end_time: newEndStr
               });
-              
-              setFormData(f => ({ 
-                ...f, 
-                start_time: newStartStr, 
-                end_time: formatLocal(newEnd) 
-              }));
             }}
             className="w-full px-3 py-2 border rounded-md"
           />
@@ -275,9 +338,9 @@ export default function CalendarEventForm({
           <div className="text-sm text-gray-500">Loading team members...</div>
         ) : (
           <div className="space-y-2">
-            {teamMembers.filter(member => member.status === 'accepted').map((member) => {
+            {getFilteredMembers().map((member) => {
               const isSelected = selectedParticipants.some(p => p.user_id === member.user_id);
-              const participant = selectedParticipants.find(p => p.user_id === member.user_id);
+              const derivedRole = member.role; // Use actual team role
               
               return (
                 <div key={member.user_id} className="flex items-center gap-3 p-2 border rounded">
@@ -288,7 +351,7 @@ export default function CalendarEventForm({
                       if (e.target.checked) {
                         setSelectedParticipants(prev => [...prev, {
                           user_id: member.user_id,
-                          role: 'player',
+                          role: derivedRole as 'player' | 'coach' | 'parent',
                           email: member.user.email
                         }]);
                       } else {
@@ -299,26 +362,17 @@ export default function CalendarEventForm({
                   />
                   <span className="flex-1 text-sm">{member.user.email}</span>
                   {isSelected && (
-                    <select
-                      value={participant?.role || 'player'}
-                      onChange={(e) => {
-                        setSelectedParticipants(prev => prev.map(p => 
-                          p.user_id === member.user_id 
-                            ? { ...p, role: e.target.value as 'player' | 'coach' }
-                            : p
-                        ));
-                      }}
-                      className="text-xs border rounded px-2 py-1"
-                    >
-                      <option value="player">Player</option>
-                      <option value="coach">Coach</option>
-                    </select>
+                    <span className="text-xs bg-gray-100 px-2 py-1 rounded capitalize">
+                      {derivedRole}
+                    </span>
                   )}
                 </div>
               );
             })}
-            {teamMembers.filter(member => member.status === 'accepted').length === 0 && (
-              <div className="text-sm text-gray-500">No team members available</div>
+            {getFilteredMembers().length === 0 && (
+              <div className="text-sm text-gray-500">
+                No team members with suitable roles for {formData.activity_type} events
+              </div>
             )}
           </div>
         )}
