@@ -9,6 +9,7 @@ import RescheduleModal from "./RescheduleModal";
 import ParentRequestForm from "./ParentRequestForm";
 import SparringRequestForm from "./SparringRequestForm";
 import SparringQuickAddModal from "./SparringQuickAddModal";
+import TrainingLogForm from "./TrainingLogForm";
 import { useRoleAccess } from "@/contexts/UserContext";
 
 interface CalendarEvent {
@@ -20,6 +21,11 @@ interface CalendarEvent {
   end_time: string;
   location: string | null;
   created_by: number;
+  participants?: Array<{
+    user_id: number;
+    email: string;
+    role: string;
+  }>;
 }
 
 // Display label mapping helper
@@ -62,6 +68,8 @@ export default function CalendarView() {
   const [showSparringRequestForm, setShowSparringRequestForm] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [prefill, setPrefill] = useState<{ date: string; time: string } | null>(null);
+  const [showTrainingLogForm, setShowTrainingLogForm] = useState(false);
+  const [trainingLogEvent, setTrainingLogEvent] = useState<CalendarEvent | null>(null);
   
   // Get user from localStorage as fallback
   const [localUserRole, setLocalUserRole] = useState<string | null>(null);
@@ -406,6 +414,42 @@ export default function CalendarView() {
     }
   };
 
+  const handleLogTraining = async (event: CalendarEvent) => {
+    try {
+      // Fetch participants for this event
+      const response = await fetch(`/api/calendar/events/${event.id}`, {
+        credentials: 'include',
+      });
+      
+      if (response.ok) {
+        const eventData = await response.json();
+        // Store participants with the event for the form
+        setTrainingLogEvent({
+          ...event,
+          participants: eventData.participants || []
+        });
+        setShowTrainingLogForm(true);
+      } else {
+        setMessage('Failed to load event participants');
+      }
+    } catch (error) {
+      console.error('Error fetching event participants:', error);
+      setMessage('Failed to load event participants');
+    }
+  };
+
+  const handleTrainingLogSubmit = async (data: any) => {
+    try {
+      setMessage('Training log saved successfully!');
+      setShowTrainingLogForm(false);
+      setTrainingLogEvent(null);
+      fetchEvents(); // Refresh to show any updates
+    } catch (error) {
+      console.error('Error saving training log:', error);
+      setMessage('Failed to save training log');
+    }
+  };
+
   const getActivityColor = (type: CalendarEvent["activity_type"]) => {
     const colors = {
       practice: "bg-blue-100 text-blue-800",
@@ -627,6 +671,7 @@ export default function CalendarView() {
             setEditingEvent(null);
             setShowForm(true);
           } : undefined}
+          onLogTraining={handleLogTraining}
         />
       ) : (
         <div className="text-center py-8 bg-gray-50 rounded-lg">
@@ -639,6 +684,19 @@ export default function CalendarView() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Training Log Form Modal */}
+      {showTrainingLogForm && trainingLogEvent && (
+        <TrainingLogForm
+          eventId={trainingLogEvent.id}
+          participants={trainingLogEvent.participants || []}
+          onSubmit={handleTrainingLogSubmit}
+          onCancel={() => {
+            setShowTrainingLogForm(false);
+            setTrainingLogEvent(null);
+          }}
+        />
       )}
     </div>
   );

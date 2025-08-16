@@ -20,6 +20,7 @@ interface CalendarListViewProps {
   onDeleteEvent?: (id: number) => void;
   onCloneEvent?: (event: CalendarEvent) => void;
   onCreateEvent?: () => void;
+  onLogTraining?: (event: CalendarEvent) => void;
 }
 
 // Display label mapping helper
@@ -75,7 +76,8 @@ export default function CalendarListView({
   onEditEvent, 
   onDeleteEvent, 
   onCloneEvent,
-  onCreateEvent 
+  onCreateEvent,
+  onLogTraining 
 }: CalendarListViewProps) {
   if (loading) {
     return (
@@ -141,6 +143,15 @@ export default function CalendarListView({
                   title="Delete event"
                 >
                   Delete
+                </button>
+              )}
+              {onLogTraining && ['practice', 'gym', 'education'].includes(event.activity_type) && (
+                <button
+                  onClick={() => onLogTraining(event)}
+                  className="text-yellow-600 hover:text-yellow-800 text-sm"
+                  title="Log training session"
+                >
+                  📋 Log
                 </button>
               )}
             </div>
