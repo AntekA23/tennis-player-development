@@ -14,9 +14,9 @@ interface TrainingLogFormProps {
 }
 
 const attendanceOptions = [
-  'present',
-  'absent', 
-  'late',
+  'planned',
+  'attended',
+  'missed',
   'excused'
 ];
 
@@ -28,7 +28,7 @@ export default function TrainingLogForm({
 }: TrainingLogFormProps) {
   const [formData, setFormData] = useState({
     player_id: '',
-    attendance_status: 'present',
+    attendance_status: 'attended',
     performance_rating: 7,
     notes: '',
   });

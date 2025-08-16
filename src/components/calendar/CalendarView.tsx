@@ -687,7 +687,7 @@ export default function CalendarView() {
       )}
 
       {/* Training Log Form Modal */}
-      {showTrainingLogForm && trainingLogEvent && (
+      {process.env.NEXT_PUBLIC_ENABLE_TRAINING_LOG_UI === 'true' && showTrainingLogForm && trainingLogEvent && (
         <TrainingLogForm
           eventId={trainingLogEvent.id}
           participants={trainingLogEvent.participants || []}

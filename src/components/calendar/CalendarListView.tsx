@@ -145,7 +145,7 @@ export default function CalendarListView({
                   Delete
                 </button>
               )}
-              {onLogTraining && ['practice', 'gym', 'education'].includes(event.activity_type) && (
+              {process.env.NEXT_PUBLIC_ENABLE_TRAINING_LOG_UI === 'true' && onLogTraining && ['practice', 'gym', 'education'].includes(event.activity_type) && (
                 <button
                   onClick={() => onLogTraining(event)}
                   className="text-yellow-600 hover:text-yellow-800 text-sm"
