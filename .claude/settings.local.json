@@ -23,7 +23,8 @@
       "Bash(npm run dev:*)",
       "WebFetch(domain:github.com)",
       "Bash(npm run:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

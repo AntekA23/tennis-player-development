@@ -100,10 +100,10 @@ export default function CalendarEventForm({
             if (user.role === 'coach' || user.role === 'parent') {
               const players = data.team.members.filter((member: any) => {
                 if (member.status !== 'accepted') return false;
-                const effectiveRole = member.role || member.user.role;
-                const normalizedRole = effectiveRole === 'member' ? 'player' : 
-                                      effectiveRole === 'creator' ? 'coach' : 
-                                      effectiveRole;
+                // Use team_members.role only (server is source of truth)
+                const normalizedRole = member.role === 'member' ? 'player' : 
+                                      member.role === 'creator' ? 'coach' : 
+                                      member.role;
                 return normalizedRole === 'player';
               });
               
