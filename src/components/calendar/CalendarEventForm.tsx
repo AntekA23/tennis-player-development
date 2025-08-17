@@ -125,7 +125,7 @@ export default function CalendarEventForm({
     }
   };
 
-  // Filter team members based on activity type
+  // Filter team members based on activity type using team_members.role
   const getFilteredMembers = () => {
     const allowedRoles = getAllowedRoles(formData.activity_type);
     console.log('[DEBUG] Filtering members:', {
@@ -140,19 +140,26 @@ export default function CalendarEventForm({
     });
     
     return teamMembers.filter(member => 
-      member.status === 'accepted' && allowedRoles.includes(member.user.role)
+      member.status === 'accepted' && allowedRoles.includes(member.role)
     );
   };
 
-  // Handle activity type change with participant validation
+  // Handle activity type change with participant validation using team member roles
   const handleActivityTypeChange = (newType: string) => {
     const allowedRoles = getAllowedRoles(newType);
-    const invalidParticipants = selectedParticipants.filter(p => !allowedRoles.includes(p.role));
+    // Find team member roles for selected participants
+    const invalidParticipants = selectedParticipants.filter(p => {
+      const teamMember = teamMembers.find(m => m.user_id === p.user_id);
+      return teamMember && !allowedRoles.includes(teamMember.role);
+    });
     
     if (invalidParticipants.length > 0) {
       const invalidEmails = invalidParticipants.map(p => p.email).join(', ');
       if (window.confirm(`These participants aren't allowed for ${newType}: ${invalidEmails}. Remove them?`)) {
-        setSelectedParticipants(prev => prev.filter(p => allowedRoles.includes(p.role)));
+        setSelectedParticipants(prev => prev.filter(p => {
+          const teamMember = teamMembers.find(m => m.user_id === p.user_id);
+          return teamMember && allowedRoles.includes(teamMember.role);
+        }));
       } else {
         return; // Don't change activity type
       }
@@ -383,7 +390,6 @@ export default function CalendarEventForm({
           <div className="space-y-2">
             {getFilteredMembers().map((member) => {
               const isSelected = selectedParticipants.some(p => p.user_id === member.user_id);
-              const derivedRole = member.role; // Use actual team role
               
               return (
                 <div key={member.user_id} className="flex items-center gap-3 p-2 border rounded">
@@ -394,7 +400,7 @@ export default function CalendarEventForm({
                       if (e.target.checked) {
                         setSelectedParticipants(prev => [...prev, {
                           user_id: member.user_id,
-                          role: derivedRole as 'player' | 'coach' | 'parent',
+                          role: member.role as 'player' | 'coach' | 'parent', // Use team member role
                           email: member.user.email
                         }]);
                       } else {
@@ -406,7 +412,7 @@ export default function CalendarEventForm({
                   <span className="flex-1 text-sm">{member.user.email}</span>
                   {isSelected && (
                     <span className="text-xs bg-gray-100 px-2 py-1 rounded capitalize">
-                      {derivedRole}
+                      {member.role}
                     </span>
                   )}
                 </div>
