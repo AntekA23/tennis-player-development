@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { calendarEvents, eventParticipants } from "@/db/schema";
-import { eq, and, gte, lte, asc } from "drizzle-orm";
+import { calendarEvents, eventParticipants, teamMembers } from "@/db/schema";
+import { eq, and, gte, lte, asc, inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { canCreateEvent, type ActivityType } from "@/lib/permissions";
+
+// Type normalizer: collapse synonyms/typos
+const norm = (s: string) => s.trim().toLowerCase()
+  .replace('sparing', 'sparring')
+  .replace('sparring request', 'sparring');
 
 // Helper: validate participant roles for event type
 const validateParticipantRoles = (eventType: string, roles: string[]): boolean => {
@@ -75,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants, tournamentScope, endTouched } = body;
+    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants, participantUserIds, tournamentScope, endTouched } = body;
 
     if (!title || !activity_type || !start_time) {
       return NextResponse.json(
@@ -84,8 +89,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize activity type to lowercase
-    const normalizedType = activity_type.toLowerCase();
+    // Normalize activity type using norm() function
+    const normalized = norm(activity_type);
+    const normalizedType = (normalized === 'sparring' ? 'sparring_request' : normalized) as any;
 
     // Check role-based creation permission
     const createPermission = await canCreateEvent(userId, teamId, activity_type as ActivityType);
@@ -126,7 +132,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate participant roles if provided
+    // Validate participant roles if provided via participantUserIds
+    if (participantUserIds && participantUserIds.length > 0) {
+      const memberRoles = await db
+        .select({ user_id: teamMembers.user_id, role: teamMembers.role })
+        .from(teamMembers)
+        .where(and(
+          eq(teamMembers.team_id, parseInt(teamId)),
+          inArray(teamMembers.user_id, participantUserIds)
+        ));
+
+      const roles = memberRoles.map(m => m.role);
+      const isValid = (
+        (normalized === 'education' && roles.every(r => r === 'parent' || r === 'player')) ||
+        (['practice', 'gym'].includes(normalized) && roles.every(r => r === 'player' || r === 'coach')) ||
+        (['match', 'sparring'].includes(normalized) && roles.every(r => r === 'player')) ||
+        (normalized === 'tournament' && roles.every(r => ['parent', 'player', 'coach'].includes(r)))
+      );
+
+      if (!isValid) {
+        const invalidRoles = roles.filter(r => {
+          if (normalized === 'education') return !['parent', 'player'].includes(r);
+          if (['practice', 'gym'].includes(normalized)) return !['player', 'coach'].includes(r);
+          if (['match', 'sparring'].includes(normalized)) return r !== 'player';
+          if (normalized === 'tournament') return !['parent', 'player', 'coach'].includes(r);
+          return true;
+        });
+        return NextResponse.json({ 
+          error: "invalid_participants", 
+          invalid: invalidRoles 
+        }, { status: 400 });
+      }
+    }
+
+    // Validate participant roles if provided via participants array (legacy)
     if (participants && participants.length > 0) {
       const participantRoles = participants.map((p: any) => p.role);
       const isValid = validateParticipantRoles(normalizedType, participantRoles);
@@ -164,8 +203,29 @@ export async function POST(request: NextRequest) {
       original_event_id: null, // Will be set when cloning
     }).returning();
 
-    // Add participants if provided
-    if (participants && Array.isArray(participants) && participants.length > 0) {
+    // Add participants if provided via participantUserIds (preferred method)
+    if (participantUserIds && Array.isArray(participantUserIds) && participantUserIds.length > 0) {
+      const memberRoles = await db
+        .select({ user_id: teamMembers.user_id, role: teamMembers.role })
+        .from(teamMembers)
+        .where(and(
+          eq(teamMembers.team_id, parseInt(teamId)),
+          inArray(teamMembers.user_id, participantUserIds)
+        ));
+
+      const participantValues = memberRoles.map(m => ({
+        event_id: newEvent.id,
+        user_id: m.user_id,
+        role: m.role === 'coach' ? 'coach' : 'player', // Map team role to participant role
+        status: 'confirmed',
+        created_at: new Date(),
+        updated_at: new Date(),
+      }));
+
+      await db.insert(eventParticipants).values(participantValues);
+    }
+    // Add participants if provided via participants array (legacy method)
+    else if (participants && Array.isArray(participants) && participants.length > 0) {
       const participantValues = participants.map((p: any) => ({
         event_id: newEvent.id,
         user_id: p.user_id,

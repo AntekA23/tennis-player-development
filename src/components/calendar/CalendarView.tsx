@@ -184,7 +184,10 @@ export default function CalendarView() {
       const response = await fetch("/api/calendar/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          participantUserIds: data.participants?.map((p: any) => p.user_id),
+        }),
       });
       
       if (!response.ok) {
@@ -214,6 +217,10 @@ export default function CalendarView() {
           location: data.location,
           start_time: data.start_time,
           end_time: data.end_time,
+          type: data.activity_type,
+          participantUserIds: data.participants?.map((p: any) => p.user_id),
+          tournamentScope: data.tournamentScope,
+          endTouched: data.endTouched,
         }),
       });
       
