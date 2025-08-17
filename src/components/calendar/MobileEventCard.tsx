@@ -23,6 +23,7 @@ interface MobileEventCardProps {
   onDelete?: () => void;
   onApproveSparring?: (eventId: number) => void;
   onDeclineSparring?: (eventId: number) => void;
+  onLogTraining?: () => void;
   userRole?: 'coach' | 'parent' | 'player';
 }
 
@@ -46,6 +47,7 @@ export default function MobileEventCard({
   onDelete,
   onApproveSparring,
   onDeclineSparring,
+  onLogTraining,
   userRole = 'player',
 }: MobileEventCardProps) {
   return (
@@ -165,8 +167,21 @@ export default function MobileEventCard({
               </button>
             )}
 
+            {onLogTraining && ['practice', 'gym', 'education'].includes(event.activity_type) && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onLogTraining();
+                }}
+                className="bg-yellow-100 text-yellow-700 p-3 rounded-lg font-medium flex items-center justify-center gap-2"
+              >
+                <span>📋</span>
+                Log Training
+              </button>
+            )}
+
             
-            {!onReschedule && !onClone && !onEdit && !onDelete && !onApproveSparring && (
+            {!onReschedule && !onClone && !onEdit && !onDelete && !onApproveSparring && !onLogTraining && (
               <div className="col-span-2 text-center text-gray-500 p-3">
                 View-only schedule
               </div>

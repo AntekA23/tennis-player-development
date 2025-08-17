@@ -151,30 +151,18 @@ export default function CalendarEventForm({
     }
   };
 
-  // Filter team members based on activity type using team_members.role with fallback
+  // Filter team members based on activity type using team_members.role (server authority)
   const getFilteredMembers = () => {
     const allowedRoles = getAllowedRoles(formData.activity_type);
-    console.log('[DEBUG] Filtering members:', {
-      activityType: formData.activity_type,
-      allowedRoles,
-      allMembers: teamMembers.map(m => ({ 
-        email: m.user.email, 
-        teamRole: m.role, 
-        userRole: m.user.role, 
-        status: m.status 
-      }))
-    });
     
     return teamMembers.filter(member => {
       if (member.status !== 'accepted') return false;
       
-      // Use team_members.role with fallback to users.role for data consistency
-      const effectiveRole = member.role || member.user.role;
-      
-      // Map inconsistent role values
-      const normalizedRole = effectiveRole === 'member' ? 'player' : 
-                            effectiveRole === 'creator' ? 'coach' : 
-                            effectiveRole;
+      // Use team_members.role only (server is source of truth)
+      // Apply defensive normalization for any remaining legacy values
+      const normalizedRole = member.role === 'member' ? 'player' : 
+                            member.role === 'creator' ? 'coach' : 
+                            member.role;
       
       return allowedRoles.includes(normalizedRole);
     });
@@ -183,15 +171,14 @@ export default function CalendarEventForm({
   // Handle activity type change with participant validation using team member roles
   const handleActivityTypeChange = (newType: string) => {
     const allowedRoles = getAllowedRoles(newType);
-    // Find team member roles for selected participants using normalized roles
+    // Find team member roles for selected participants (server authority)
     const invalidParticipants = selectedParticipants.filter(p => {
       const teamMember = teamMembers.find(m => m.user_id === p.user_id);
       if (!teamMember) return true;
       
-      const effectiveRole = teamMember.role || teamMember.user.role;
-      const normalizedRole = effectiveRole === 'member' ? 'player' : 
-                            effectiveRole === 'creator' ? 'coach' : 
-                            effectiveRole;
+      const normalizedRole = teamMember.role === 'member' ? 'player' : 
+                            teamMember.role === 'creator' ? 'coach' : 
+                            teamMember.role;
       return !allowedRoles.includes(normalizedRole);
     });
     
@@ -202,10 +189,9 @@ export default function CalendarEventForm({
           const teamMember = teamMembers.find(m => m.user_id === p.user_id);
           if (!teamMember) return false;
           
-          const effectiveRole = teamMember.role || teamMember.user.role;
-          const normalizedRole = effectiveRole === 'member' ? 'player' : 
-                                effectiveRole === 'creator' ? 'coach' : 
-                                effectiveRole;
+          const normalizedRole = teamMember.role === 'member' ? 'player' : 
+                                teamMember.role === 'creator' ? 'coach' : 
+                                teamMember.role;
           return allowedRoles.includes(normalizedRole);
         }));
       } else {
@@ -451,11 +437,10 @@ export default function CalendarEventForm({
                     checked={isSelected}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        // Use normalized role for consistency
-                        const effectiveRole = member.role || member.user.role;
-                        const normalizedRole = effectiveRole === 'member' ? 'player' : 
-                                              effectiveRole === 'creator' ? 'coach' : 
-                                              effectiveRole;
+                        // Use team member role (server authority)
+                        const normalizedRole = member.role === 'member' ? 'player' : 
+                                              member.role === 'creator' ? 'coach' : 
+                                              member.role;
                         
                         setSelectedParticipants(prev => [...prev, {
                           user_id: member.user_id,
@@ -471,12 +456,9 @@ export default function CalendarEventForm({
                   <span className="flex-1 text-sm">{member.user.email}</span>
                   {isSelected && (
                     <span className="text-xs bg-gray-100 px-2 py-1 rounded capitalize">
-                      {(() => {
-                        const effectiveRole = member.role || member.user.role;
-                        return effectiveRole === 'member' ? 'player' : 
-                               effectiveRole === 'creator' ? 'coach' : 
-                               effectiveRole;
-                      })()}
+                      {member.role === 'member' ? 'player' : 
+                       member.role === 'creator' ? 'coach' : 
+                       member.role}
                     </span>
                   )}
                 </div>

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Railway API Test - Phase 2</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #00ff00; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #00ff00; }
+        button { background: #00ff00; color: #000; padding: 10px 20px; margin: 5px; cursor: pointer; }
+        button:hover { background: #00dd00; }
+        .result { margin: 10px 0; padding: 10px; background: #0a0a0a; white-space: pre-wrap; }
+        .error { color: #ff0000; }
+        .success { color: #00ff00; }
+        .warning { color: #ffff00; }
+        input { background: #0a0a0a; color: #00ff00; border: 1px solid #00ff00; padding: 5px; margin: 5px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>🚂 Railway Production API Testing</h1>
+    
+    <div class="section">
+        <h2>⚠️ Setup Required</h2>
+        <p class="warning">1. Enter your Railway URL below</p>
+        <p class="warning">2. You must be logged in on Railway app in another tab</p>
+        <p class="warning">3. Use real event/user IDs from your production database</p>
+        
+        <label>Railway URL: <input id="railwayUrl" placeholder="https://your-app.up.railway.app" /></label><br>
+        <label>Practice Event ID: <input id="practiceEventId" placeholder="ID of a practice/gym event" /></label><br>
+        <label>Player ID: <input id="playerId" placeholder="ID of player in that event" /></label><br>
+        <label>Match Event ID: <input id="matchEventId" placeholder="ID of match with 2 players" /></label><br>
+        <label>Winner ID: <input id="winnerId" placeholder="One of the 2 players in match" /></label><br>
+    </div>
+
+    <div class="section">
+        <h2>📋 Training Log API Tests</h2>
+        <button onclick="testTrainingCreate()">1. Create Training Log</button>
+        <button onclick="testTrainingUpdate()">2. Update Training Log (Upsert)</button>
+        <button onclick="testTrainingInvalid()">3. Test Validation</button>
+        <div id="trainingResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>🎾 Match Result API Tests</h2>
+        <button onclick="testMatchCreate()">1. Create Match Result</button>
+        <button onclick="testMatchDuplicate()">2. Test Duplicate Prevention</button>
+        <button onclick="testMatchInvalidScore()">3. Test Score Validation</button>
+        <div id="matchResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h2>📊 Test Summary</h2>
+        <div id="summary" class="result"></div>
+    </div>
+
+    <script>
+        let testResults = [];
+        
+        function getApiBase() {
+            const url = document.getElementById('railwayUrl').value;
+            if (!url) {
+                alert('Please enter your Railway URL first!');
+                return null;
+            }
+            return `${url}/api`;
+        }
+        
+        function getTestData() {
+            return {
+                practiceEventId: document.getElementById('practiceEventId').value,
+                playerId: document.getElementById('playerId').value,
+                matchEventId: document.getElementById('matchEventId').value,
+                winnerId: document.getElementById('winnerId').value
+            };
+        }
+        
+        async function apiCall(path, method, body) {
+            const apiBase = getApiBase();
+            if (!apiBase) return { status: 0, data: { error: 'No Railway URL' }, success: false };
+            
+            const fullUrl = `${apiBase}${path}`;
+            
+            try {
+                const response = await fetch(fullUrl, {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(body)
+                });
+                
+                const result = await response.json();
+                return { 
+                    status: response.status, 
+                    data: result,
+                    success: response.ok 
+                };
+            } catch (error) {
+                return { 
+                    status: 0, 
+                    data: { error: error.message },
+                    success: false 
+                };
+            }
+        }
+        
+        function addTestResult(name, expected, actual) {
+            testResults.push({ name, expected, actual, passed: expected === actual });
+            updateSummary();
+        }
+        
+        function updateSummary() {
+            const passed = testResults.filter(r => r.passed).length;
+            const total = testResults.length;
+            
+            let html = `<h3>Results: ${passed}/${total} Passed</h3>`;
+            testResults.forEach(r => {
+                const icon = r.passed ? '✅' : '❌';
+                html += `${icon} ${r.name}: Expected ${r.expected}, Got ${r.actual}\n`;
+            });
+            
+            document.getElementById('summary').innerHTML = 
+                `<span class="${passed === total ? 'success' : 'error'}">${html}</span>`;
+        }
+        
+        async function testTrainingCreate() {
+            const data = getTestData();
+            if (!data.practiceEventId || !data.playerId) {
+                alert('Please fill in Practice Event ID and Player ID');
+                return;
+            }
+            
+            const result = await apiCall(
+                `/events/${data.practiceEventId}/training-log`,
+                'POST',
+                {
+                    player_id: data.playerId,
+                    attendance_status: 'present',
+                    performance_rating: 8,
+                    notes: 'API test - great session'
+                }
+            );
+            
+            addTestResult('Training Log Create', 200, result.status);
+            
+            const output = `CREATE Training Log:
+Status: ${result.status} ${result.success ? '✅' : '❌'}
+Response: ${JSON.stringify(result.data, null, 2)}`;
+            
+            document.getElementById('trainingResult').innerHTML = 
+                `<span class="${result.success ? 'success' : 'error'}">${output}</span>`;
+        }
+        
+        async function testTrainingUpdate() {
+            const data = getTestData();
+            const result = await apiCall(
+                `/events/${data.practiceEventId}/training-log`,
+                'POST',
+                {
+                    player_id: data.playerId,
+                    attendance_status: 'late',
+                    performance_rating: 7,
+                    notes: 'API test - updated via upsert'
+                }
+            );
+            
+            addTestResult('Training Log Update', 200, result.status);
+            
+            const output = `UPDATE Training Log (Upsert):
+Status: ${result.status} ${result.success ? '✅' : '❌'}
+Response: ${JSON.stringify(result.data, null, 2)}`;
+            
+            document.getElementById('trainingResult').innerHTML = 
+                `<span class="${result.success ? 'success' : 'error'}">${output}</span>`;
+        }
+        
+        async function testTrainingInvalid() {
+            const data = getTestData();
+            const result = await apiCall(
+                `/events/${data.practiceEventId}/training-log`,
+                'POST',
+                {
+                    player_id: data.playerId,
+                    attendance_status: 'INVALID_STATUS_TEST'
+                }
+            );
+            
+            addTestResult('Training Invalid Status', 400, result.status);
+            
+            const output = `INVALID Status Validation:
+Status: ${result.status} ${result.status === 400 ? '✅' : '❌'} (should be 400)
+Error: ${result.data.error || 'No error message'}`;
+            
+            document.getElementById('trainingResult').innerHTML = 
+                `<span class="${result.status === 400 ? 'success' : 'error'}">${output}</span>`;
+        }
+        
+        async function testMatchCreate() {
+            const data = getTestData();
+            if (!data.matchEventId) {
+                alert('Please fill in Match Event ID');
+                return;
+            }
+            
+            const result = await apiCall(
+                `/events/${data.matchEventId}/match-result`,
+                'POST',
+                {
+                    winner_id: data.winnerId || null,
+                    score_text: '6-4 6-2',
+                    notes: 'API test match result'
+                }
+            );
+            
+            addTestResult('Match Result Create', 200, result.status);
+            
+            const output = `CREATE Match Result:
+Status: ${result.status} ${result.success ? '✅' : '❌'}
+Response: ${JSON.stringify(result.data, null, 2)}`;
+            
+            document.getElementById('matchResult').innerHTML = 
+                `<span class="${result.success ? 'success' : 'error'}">${output}</span>`;
+        }
+        
+        async function testMatchDuplicate() {
+            const data = getTestData();
+            const result = await apiCall(
+                `/events/${data.matchEventId}/match-result`,
+                'POST',
+                {
+                    winner_id: data.winnerId || null,
+                    score_text: '7-5 6-3'
+                }
+            );
+            
+            addTestResult('Match Duplicate Prevention', 400, result.status);
+            
+            const output = `DUPLICATE Prevention:
+Status: ${result.status} ${result.status === 400 ? '✅' : '❌'} (should be 400)
+Error: ${result.data.error || 'No error message'}`;
+            
+            document.getElementById('matchResult').innerHTML = 
+                `<span class="${result.status === 400 ? 'success' : 'error'}">${output}</span>`;
+        }
+        
+        async function testMatchInvalidScore() {
+            const data = getTestData();
+            const result = await apiCall(
+                `/events/${data.matchEventId}/match-result`,
+                'POST',
+                {
+                    score_text: 'Player 1 wins!'  // Invalid format
+                }
+            );
+            
+            addTestResult('Match Score Validation', 400, result.status);
+            
+            const output = `INVALID Score Validation:
+Status: ${result.status} ${result.status === 400 ? '✅' : '❌'} (should be 400)
+Error: ${result.data.error || 'No error message'}`;
+            
+            document.getElementById('matchResult').innerHTML = 
+                `<span class="${result.status === 400 ? 'success' : 'error'}">${output}</span>`;
+        }
+    </script>
+</body>
+</html>
