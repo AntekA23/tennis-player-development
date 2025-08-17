@@ -120,25 +120,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Compute end time for tournament if not manually set
+    // Compute end time based on activity type if not manually set
     let computedEndTime = end_time;
-    if (normalizedType === 'tournament' && !endTouched) {
-      if (!tournamentScope) {
+    if (!endTouched) {
+      if (normalizedType === 'education') {
+        // Education: +60 minutes
+        const startDate = new Date(start_time);
+        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+        computedEndTime = endDate.toISOString();
+      } else if (normalizedType === 'tournament') {
+        // Tournament: +2d/+3d based on scope
+        if (!tournamentScope) {
+          return NextResponse.json(
+            { error: "Tournament scope required (National or International-TE)" },
+            { status: 400 }
+          );
+        }
+        const startDate = new Date(start_time);
+        const days = tournamentScope === 'National' ? 2 : 3;
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + days);
+        computedEndTime = endDate.toISOString();
+      } else if (!end_time) {
         return NextResponse.json(
-          { error: "Tournament scope required (National or International-TE)" },
+          { error: "End time required" },
           { status: 400 }
         );
       }
-      const startDate = new Date(start_time);
-      const days = tournamentScope === 'National' ? 2 : 3;
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + days);
-      computedEndTime = endDate.toISOString();
-    } else if (!end_time) {
-      return NextResponse.json(
-        { error: "End time required" },
-        { status: 400 }
-      );
     }
 
     // Validate participant roles if provided via participantUserIds

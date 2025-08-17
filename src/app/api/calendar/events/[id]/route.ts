@@ -67,16 +67,24 @@ export async function PUT(
       normalizedType = normalized === 'sparring' ? 'sparring_request' : normalized as any;
     }
 
-    // Tournament End authority: server computes when !endTouched
-    if (normalizedType === 'tournament' && endTouched !== true) {
-      if (!tournamentScope || !['National', 'International-TE'].includes(tournamentScope)) {
-        return NextResponse.json({ error: "missing_tournament_scope" }, { status: 400 });
+    // Server duration authority: compute when !endTouched
+    if (endTouched !== true) {
+      if (normalizedType === 'education' && start_time) {
+        // Education: +60 minutes
+        const startDate = new Date(start_time);
+        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+        computedEndTime = endDate.toISOString();
+      } else if (normalizedType === 'tournament') {
+        // Tournament: +2d/+3d based on scope
+        if (!tournamentScope || !['National', 'International-TE'].includes(tournamentScope)) {
+          return NextResponse.json({ error: "missing_tournament_scope" }, { status: 400 });
+        }
+        const startDate = new Date(start_time || existingEvent.start_time);
+        const days = tournamentScope === 'National' ? 2 : 3;
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + days);
+        computedEndTime = endDate.toISOString();
       }
-      const startDate = new Date(start_time || existingEvent.start_time);
-      const days = tournamentScope === 'National' ? 2 : 3;
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + days);
-      computedEndTime = endDate.toISOString();
     }
 
     // Validate participant roles if provided

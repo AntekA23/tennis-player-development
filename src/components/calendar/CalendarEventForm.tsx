@@ -230,9 +230,11 @@ export default function CalendarEventForm({
     let durationMs: number;
     
     switch (activityType) {
+      case 'education':
+        durationMs = 60 * 60 * 1000; // Education: exactly 60 minutes
+        break;
       case 'practice':
       case 'gym':
-      case 'education':
         durationMs = 60 * 60 * 1000; // 60 minutes
         break;
       case 'match':
@@ -240,7 +242,10 @@ export default function CalendarEventForm({
         durationMs = 90 * 60 * 1000; // 90 minutes
         break;
       case 'tournament':
-        durationMs = 2 * 24 * 60 * 60 * 1000; // 2 days (National default)
+        // Tournament duration handled by server based on scope
+        // Client shows preview only - server computes final duration
+        const scopeDays = tournamentScope === 'International-TE' ? 3 : 2;
+        durationMs = scopeDays * 24 * 60 * 60 * 1000;
         break;
       default:
         durationMs = 60 * 60 * 1000; // 60 minutes default
