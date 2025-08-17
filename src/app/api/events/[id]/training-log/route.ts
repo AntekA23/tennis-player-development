@@ -4,6 +4,11 @@ import { db } from "@/db";
 import { trainingSessions, calendarEvents, eventParticipants } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
+// Type normalizer: collapse synonyms/typos
+const norm = (s: string) => s.trim().toLowerCase()
+  .replace('sparing', 'sparring')
+  .replace('sparring request', 'sparring');
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -41,11 +46,11 @@ export async function POST(
     
     const mappedStatus = mapStatus(attendance_status);
 
-    // Validate mapped attendance_status
-    const validStatuses = ['present', 'absent', 'late'];
-    if (!validStatuses.includes(mappedStatus)) {
+    // Validate status: accept original values (attended/missed/late) or mapped values (present/absent/late)
+    const validInputStatuses = ['attended', 'missed', 'late', 'present', 'absent'];
+    if (!validInputStatuses.includes(attendance_status)) {
       return NextResponse.json(
-        { error: "Invalid attendance_status. Must be: present, absent, or late" },
+        { error: "Invalid attendance_status. Must be: attended, missed, or late" },
         { status: 400 }
       );
     }
@@ -76,9 +81,10 @@ export async function POST(
       );
     }
 
-    // Verify event is training-related
+    // Verify event is training-related (use normalized type)
+    const normalizedType = norm(event.activity_type);
     const trainingTypes = ['practice', 'gym', 'education'];
-    if (!trainingTypes.includes(event.activity_type)) {
+    if (!trainingTypes.includes(normalizedType)) {
       return NextResponse.json(
         { error: "Training logs can only be added to practice, gym, or education events" },
         { status: 400 }

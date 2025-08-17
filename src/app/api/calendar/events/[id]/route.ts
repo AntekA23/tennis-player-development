@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/db";
-import { calendarEvents } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { calendarEvents, teamMembers } from "@/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
+
+// Type normalizer: collapse synonyms/typos
+const norm = (s: string) => s.trim().toLowerCase()
+  .replace('sparing', 'sparring')
+  .replace('sparring request', 'sparring');
 
 export async function PUT(
   req: NextRequest,
@@ -37,12 +42,71 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const { title, description, location, start_time, end_time } = body;
+    const { title, description, location, start_time, end_time, type, participantUserIds, tournamentScope, endTouched } = body;
+
+    let computedEndTime = end_time;
+    let normalizedType = existingEvent.activity_type;
+
+    // Type normalization and validation
+    if (type) {
+      const normalized = norm(type);
+      const validTypes = ['education', 'practice', 'gym', 'match', 'sparring', 'tournament'];
+      if (!validTypes.includes(normalized)) {
+        return NextResponse.json({ error: "Invalid activity type" }, { status: 400 });
+      }
+      // Map sparring back to sparring_request for database
+      normalizedType = normalized === 'sparring' ? 'sparring_request' : normalized as any;
+    }
+
+    // Tournament End authority: server computes when !endTouched
+    if (normalizedType === 'tournament' && endTouched !== true) {
+      if (!tournamentScope || !['National', 'International-TE'].includes(tournamentScope)) {
+        return NextResponse.json({ error: "missing_tournament_scope" }, { status: 400 });
+      }
+      const startDate = new Date(start_time || existingEvent.start_time);
+      const days = tournamentScope === 'National' ? 2 : 3;
+      const endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + days);
+      computedEndTime = endDate.toISOString();
+    }
+
+    // Validate participant roles if provided
+    if (participantUserIds && participantUserIds.length > 0) {
+      const memberRoles = await db
+        .select({ user_id: teamMembers.user_id, role: teamMembers.role })
+        .from(teamMembers)
+        .where(and(
+          eq(teamMembers.team_id, teamId),
+          inArray(teamMembers.user_id, participantUserIds)
+        ));
+
+      const roles = memberRoles.map(m => m.role);
+      const isValid = (
+        (normalizedType === 'education' && roles.every(r => r === 'parent' || r === 'player')) ||
+        (['practice', 'gym'].includes(normalizedType) && roles.every(r => r === 'player' || r === 'coach')) ||
+        (['match', 'sparring'].includes(normalizedType) && roles.every(r => r === 'player')) ||
+        (normalizedType === 'tournament' && roles.every(r => ['parent', 'player', 'coach'].includes(r)))
+      );
+
+      if (!isValid) {
+        const invalidRoles = roles.filter(r => {
+          if (normalizedType === 'education') return !['parent', 'player'].includes(r);
+          if (['practice', 'gym'].includes(normalizedType)) return !['player', 'coach'].includes(r);
+          if (['match', 'sparring'].includes(normalizedType)) return r !== 'player';
+          if (normalizedType === 'tournament') return !['parent', 'player', 'coach'].includes(r);
+          return true;
+        });
+        return NextResponse.json({ 
+          error: "invalid_participants", 
+          invalid: invalidRoles 
+        }, { status: 400 });
+      }
+    }
 
     // Validate times if provided
-    if (start_time && end_time) {
+    if (start_time && computedEndTime) {
       const start = new Date(start_time);
-      const end = new Date(end_time);
+      const end = new Date(computedEndTime);
       if (isNaN(+start) || isNaN(+end) || end <= start) {
         return NextResponse.json({ error: "Invalid time range" }, { status: 400 });
       }
@@ -54,7 +118,8 @@ export async function PUT(
     if (description !== undefined) updates.description = description;
     if (location !== undefined) updates.location = location;
     if (start_time) updates.start_time = new Date(start_time);
-    if (end_time) updates.end_time = new Date(end_time);
+    if (computedEndTime) updates.end_time = new Date(computedEndTime);
+    if (normalizedType !== existingEvent.activity_type) updates.activity_type = normalizedType;
 
     const [updatedEvent] = await db
       .update(calendarEvents)
