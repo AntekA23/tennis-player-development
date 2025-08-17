@@ -5,9 +5,18 @@ import { calendarEvents, teamMembers } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 
 // Type normalizer: collapse synonyms/typos
-const norm = (s: string) => s.trim().toLowerCase()
+const normType = (s: string) => s.trim().toLowerCase()
   .replace('sparing', 'sparring')
   .replace('sparring request', 'sparring');
+
+// Role normalizer: defensive mapping for any legacy values
+const normRole = (role: string) => {
+  switch (role) {
+    case 'member': return 'player';
+    case 'creator': return 'coach';
+    default: return role;
+  }
+};
 
 export async function PUT(
   req: NextRequest,
@@ -49,7 +58,7 @@ export async function PUT(
 
     // Type normalization and validation
     if (type) {
-      const normalized = norm(type);
+      const normalized = normType(type);
       const validTypes = ['education', 'practice', 'gym', 'match', 'sparring', 'tournament'];
       if (!validTypes.includes(normalized)) {
         return NextResponse.json({ error: "Invalid activity type" }, { status: 400 });
@@ -80,16 +89,17 @@ export async function PUT(
           inArray(teamMembers.user_id, participantUserIds)
         ));
 
-      const roles = memberRoles.map(m => m.role);
+      // Apply defensive role normalization and validate
+      const normalizedRoles = memberRoles.map(m => normRole(m.role));
       const isValid = (
-        (normalizedType === 'education' && roles.every(r => r === 'parent' || r === 'player')) ||
-        (['practice', 'gym'].includes(normalizedType) && roles.every(r => r === 'player' || r === 'coach')) ||
-        (['match', 'sparring'].includes(normalizedType) && roles.every(r => r === 'player')) ||
-        (normalizedType === 'tournament' && roles.every(r => ['parent', 'player', 'coach'].includes(r)))
+        (normalizedType === 'education' && normalizedRoles.every(r => r === 'parent' || r === 'player')) ||
+        (['practice', 'gym'].includes(normalizedType) && normalizedRoles.every(r => r === 'player' || r === 'coach')) ||
+        (['match', 'sparring'].includes(normalizedType) && normalizedRoles.every(r => r === 'player')) ||
+        (normalizedType === 'tournament' && normalizedRoles.every(r => ['parent', 'player', 'coach'].includes(r)))
       );
 
       if (!isValid) {
-        const invalidRoles = roles.filter(r => {
+        const invalidRoles = normalizedRoles.filter(r => {
           if (normalizedType === 'education') return !['parent', 'player'].includes(r);
           if (['practice', 'gym'].includes(normalizedType)) return !['player', 'coach'].includes(r);
           if (['match', 'sparring'].includes(normalizedType)) return r !== 'player';

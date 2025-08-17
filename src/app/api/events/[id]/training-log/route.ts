@@ -5,9 +5,18 @@ import { trainingSessions, calendarEvents, eventParticipants } from "@/db/schema
 import { eq, and } from "drizzle-orm";
 
 // Type normalizer: collapse synonyms/typos
-const norm = (s: string) => s.trim().toLowerCase()
+const normType = (s: string) => s.trim().toLowerCase()
   .replace('sparing', 'sparring')
   .replace('sparring request', 'sparring');
+
+// Role normalizer: defensive mapping for any legacy values  
+const normRole = (role: string) => {
+  switch (role) {
+    case 'member': return 'player';
+    case 'creator': return 'coach';
+    default: return role;
+  }
+};
 
 export async function POST(
   request: NextRequest,
@@ -82,7 +91,7 @@ export async function POST(
     }
 
     // Verify event is training-related (use normalized type)
-    const normalizedType = norm(event.activity_type);
+    const normalizedType = normType(event.activity_type);
     const trainingTypes = ['practice', 'gym', 'education'];
     if (!trainingTypes.includes(normalizedType)) {
       return NextResponse.json(
