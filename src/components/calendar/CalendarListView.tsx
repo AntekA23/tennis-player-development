@@ -129,7 +129,10 @@ export default function CalendarListView({
               )}
               {onEditEvent && (
                 <button
-                  onClick={() => onEditEvent(event)}
+                  onClick={() => {
+                    console.log('[CalendarListView] Edit clicked:', event.id, event);
+                    onEditEvent(event);
+                  }}
                   className="text-blue-600 hover:text-blue-800 text-sm"
                   title="Edit event"
                 >
