@@ -33,9 +33,17 @@ export async function POST(
       );
     }
 
-    // Validate attendance_status
+    // Map UI values to DB values (attended→present, missed→absent, late→late)
+    const mapStatus = (v: string) => 
+      v === 'attended' ? 'present' : 
+      v === 'missed' ? 'absent' : 
+      v === 'late' ? 'late' : v;
+    
+    const mappedStatus = mapStatus(attendance_status);
+
+    // Validate mapped attendance_status
     const validStatuses = ['present', 'absent', 'late'];
-    if (!validStatuses.includes(attendance_status)) {
+    if (!validStatuses.includes(mappedStatus)) {
       return NextResponse.json(
         { error: "Invalid attendance_status. Must be: present, absent, or late" },
         { status: 400 }
@@ -113,7 +121,7 @@ export async function POST(
       [result] = await db
         .update(trainingSessions)
         .set({
-          attendance_status,
+          attendance_status: mappedStatus,
           performance_rating: performance_rating || null,
           notes: notes || null,
           logged_by: parseInt(userId),
@@ -128,7 +136,7 @@ export async function POST(
         .values({
           event_id: eventId,
           player_id: parseInt(player_id),
-          attendance_status,
+          attendance_status: mappedStatus,
           performance_rating: performance_rating || null,
           notes: notes || null,
           logged_by: parseInt(userId),

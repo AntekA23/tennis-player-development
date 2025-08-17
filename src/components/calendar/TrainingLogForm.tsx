@@ -14,10 +14,9 @@ interface TrainingLogFormProps {
 }
 
 const attendanceOptions = [
-  'planned',
-  'attended',
-  'missed',
-  'excused'
+  { value: 'attended', label: 'Present' },
+  { value: 'missed', label: 'Absent' },
+  { value: 'late', label: 'Late' }
 ];
 
 export default function TrainingLogForm({
@@ -120,8 +119,8 @@ export default function TrainingLogForm({
               className="w-full px-3 py-2 border rounded-md"
             >
               {attendanceOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option.charAt(0).toUpperCase() + option.slice(1)}
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>

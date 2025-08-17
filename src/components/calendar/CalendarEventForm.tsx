@@ -64,6 +64,7 @@ interface TeamMember {
   status: string;
   user: {
     email: string;
+    role: string; // Add role from users table
   };
 }
 
@@ -130,11 +131,16 @@ export default function CalendarEventForm({
     console.log('[DEBUG] Filtering members:', {
       activityType: formData.activity_type,
       allowedRoles,
-      allMembers: teamMembers.map(m => ({ email: m.user.email, role: m.role, status: m.status }))
+      allMembers: teamMembers.map(m => ({ 
+        email: m.user.email, 
+        teamRole: m.role, 
+        userRole: m.user.role, 
+        status: m.status 
+      }))
     });
     
     return teamMembers.filter(member => 
-      member.status === 'accepted' && allowedRoles.includes(member.role)
+      member.status === 'accepted' && allowedRoles.includes(member.user.role)
     );
   };
 
@@ -211,6 +217,8 @@ export default function CalendarEventForm({
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [tournamentScope, setTournamentScope] = useState<'National' | 'International-TE'>('National');
+  const [endTouched, setEndTouched] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,8 +227,10 @@ export default function CalendarEventForm({
     const submitData = {
       ...formData,
       start_time: toIsoUtc(formData.start_time),
-      end_time: toIsoUtc(formData.end_time),
+      end_time: formData.activity_type === 'tournament' && !endTouched ? undefined : toIsoUtc(formData.end_time),
       participants: selectedParticipants,
+      tournamentScope: formData.activity_type === 'tournament' ? tournamentScope : undefined,
+      endTouched: endTouched,
     };
     
     onSubmit(submitData);
@@ -276,6 +286,31 @@ export default function CalendarEventForm({
         </select>
       </div>
 
+      {/* Tournament Scope - Only show for tournaments */}
+      {formData.activity_type === 'tournament' && (
+        <div>
+          <label className="block text-sm font-medium mb-1">Tournament Scope *</label>
+          <select
+            required
+            value={tournamentScope}
+            onChange={(e) => {
+              setTournamentScope(e.target.value as 'National' | 'International-TE');
+              // Auto-update end time if not manually touched
+              if (!endTouched && formData.start_time) {
+                const days = e.target.value === 'National' ? 2 : 3;
+                const start = parseLocal(formData.start_time);
+                const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+                setFormData({ ...formData, end_time: formatLocal(end) });
+              }
+            }}
+            className="w-full px-3 py-2 border rounded-md"
+          >
+            <option value="National">National</option>
+            <option value="International-TE">International (Tennis Europe)</option>
+          </select>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1">Start Time *</label>
@@ -307,6 +342,7 @@ export default function CalendarEventForm({
             value={formData.end_time}
             onChange={(e) => {
               const newEndStr = e.target.value;
+              setEndTouched(true); // User manually edited end time
               
               if (!newEndStr || !formData.start_time) {
                 setFormData({ ...formData, end_time: newEndStr });

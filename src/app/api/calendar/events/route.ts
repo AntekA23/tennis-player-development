@@ -5,6 +5,17 @@ import { eq, and, gte, lte, asc } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { canCreateEvent, type ActivityType } from "@/lib/permissions";
 
+// Helper: validate participant roles for event type
+const validateParticipantRoles = (eventType: string, roles: string[]): boolean => {
+  const t = eventType.toLowerCase();
+  return (
+    (t === 'education' && roles.every(r => r === 'parent' || r === 'player')) ||
+    ((t === 'practice' || t === 'gym') && roles.every(r => r === 'player' || r === 'coach')) ||
+    ((t === 'match' || t === 'sparring_request') && roles.every(r => r === 'player')) ||
+    (t === 'tournament' && roles.every(r => r === 'parent' || r === 'player' || r === 'coach'))
+  );
+};
+
 export async function GET(request: NextRequest) {
   try {
     const ck = await cookies();
@@ -64,14 +75,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants } = body;
+    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants, tournamentScope, endTouched } = body;
 
-    if (!title || !activity_type || !start_time || !end_time) {
+    if (!title || !activity_type || !start_time) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
+
+    // Normalize activity type to lowercase
+    const normalizedType = activity_type.toLowerCase();
 
     // Check role-based creation permission
     const createPermission = await canCreateEvent(userId, teamId, activity_type as ActivityType);
@@ -84,11 +98,44 @@ export async function POST(request: NextRequest) {
     }
 
     const validActivityTypes = ['practice', 'gym', 'match', 'tournament', 'education', 'sparring_request'];
-    if (!validActivityTypes.includes(activity_type)) {
+    if (!validActivityTypes.includes(normalizedType)) {
       return NextResponse.json(
         { error: "Invalid activity type" },
         { status: 400 }
       );
+    }
+
+    // Compute end time for tournament if not manually set
+    let computedEndTime = end_time;
+    if (normalizedType === 'tournament' && !endTouched) {
+      if (!tournamentScope) {
+        return NextResponse.json(
+          { error: "Tournament scope required (National or International-TE)" },
+          { status: 400 }
+        );
+      }
+      const startDate = new Date(start_time);
+      const days = tournamentScope === 'National' ? 2 : 3;
+      const endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + days);
+      computedEndTime = endDate.toISOString();
+    } else if (!end_time) {
+      return NextResponse.json(
+        { error: "End time required" },
+        { status: 400 }
+      );
+    }
+
+    // Validate participant roles if provided
+    if (participants && participants.length > 0) {
+      const participantRoles = participants.map((p: any) => p.role);
+      const isValid = validateParticipantRoles(normalizedType, participantRoles);
+      if (!isValid) {
+        return NextResponse.json(
+          { error: "Invalid participant roles for this event type" },
+          { status: 400 }
+        );
+      }
     }
 
     // Log the data being inserted
@@ -96,11 +143,11 @@ export async function POST(request: NextRequest) {
       team_id: parseInt(teamId),
       created_by: parseInt(userId),
       title,
-      activity_type,
+      activity_type: normalizedType,
       start_time,
-      end_time,
+      end_time: computedEndTime,
       start_date: new Date(start_time),
-      end_date: new Date(end_time)
+      end_date: new Date(computedEndTime)
     });
 
     const [newEvent] = await db.insert(calendarEvents).values({
@@ -108,9 +155,9 @@ export async function POST(request: NextRequest) {
       created_by: parseInt(userId),
       title,
       description: description || null,
-      activity_type,
+      activity_type: normalizedType,
       start_time: new Date(start_time),
-      end_time: new Date(end_time),
+      end_time: new Date(computedEndTime),
       location: location || null,
       is_recurring: is_recurring || false,
       recurrence_pattern: recurrence_pattern || null,
