@@ -133,53 +133,43 @@ export default function CalendarEventForm({
   const isParentFallback = isParent || localUserRole === 'parent';
   const isPlayerFallback = isPlayer || localUserRole === 'player';
 
-  // Activity type role restrictions
-  const getAllowedRoles = (activityType: string): string[] => {
-    switch (activityType) {
-      case 'education':
-        return ['parent', 'player'];
-      case 'practice':
-      case 'gym':
-        return ['player', 'coach'];
-      case 'match':
-      case 'sparring_request':
-        return ['player'];
-      case 'tournament':
-        return ['parent', 'player', 'coach'];
-      default:
-        return ['player', 'coach'];
-    }
+  type Role = 'player' | 'coach' | 'parent';
+
+  const normType = (s: string) =>
+    s.trim().toLowerCase()
+     .replace('sparing', 'sparring')
+     .replace('sparring request', 'sparring')
+     .replace('sparring_request', 'sparring');
+
+  const ALLOWED: Record<string, Role[]> = {
+    education: ['parent','player'],
+    practice: ['player','coach'],
+    gym: ['player','coach'],
+    match: ['player'],
+    sparring: ['player'],           // <- single canonical key
+    tournament: ['parent','player','coach'],
   };
+
+  const allowedRolesFor = (t: string) => ALLOWED[normType(t)] ?? [];
 
   // Filter team members based on activity type using team_members.role (server authority)
   const getFilteredMembers = () => {
-    const allowedRoles = getAllowedRoles(formData.activity_type);
-    
-    return teamMembers.filter(member => {
-      if (member.status !== 'accepted') return false;
-      
-      // Use team_members.role only (server is source of truth)
-      // Apply defensive normalization for any remaining legacy values
-      const normalizedRole = member.role === 'member' ? 'player' : 
-                            member.role === 'creator' ? 'coach' : 
-                            member.role;
-      
-      return allowedRoles.includes(normalizedRole);
-    });
+    const allowed = new Set(allowedRolesFor(formData.activity_type));
+    const selectable = teamMembers
+      .filter(m => m.status === 'accepted')
+      .filter(m => allowed.has(m.role as Role));
+    return selectable;
   };
 
   // Handle activity type change with participant validation using team member roles
   const handleActivityTypeChange = (newType: string) => {
-    const allowedRoles = getAllowedRoles(newType);
+    const allowed = new Set(allowedRolesFor(newType));
     // Find team member roles for selected participants (server authority)
     const invalidParticipants = selectedParticipants.filter(p => {
       const teamMember = teamMembers.find(m => m.user_id === p.user_id);
       if (!teamMember) return true;
       
-      const normalizedRole = teamMember.role === 'member' ? 'player' : 
-                            teamMember.role === 'creator' ? 'coach' : 
-                            teamMember.role;
-      return !allowedRoles.includes(normalizedRole);
+      return !allowed.has(teamMember.role as Role);
     });
     
     if (invalidParticipants.length > 0) {
@@ -189,10 +179,7 @@ export default function CalendarEventForm({
           const teamMember = teamMembers.find(m => m.user_id === p.user_id);
           if (!teamMember) return false;
           
-          const normalizedRole = teamMember.role === 'member' ? 'player' : 
-                                teamMember.role === 'creator' ? 'coach' : 
-                                teamMember.role;
-          return allowedRoles.includes(normalizedRole);
+          return allowed.has(teamMember.role as Role);
         }));
       } else {
         return; // Don't change activity type
@@ -422,7 +409,13 @@ export default function CalendarEventForm({
 
       {/* Participants Section */}
       <div>
-        <label className="block text-sm font-medium mb-2">Participants</label>
+        <label className="block text-sm font-medium mb-2">
+          Participants 
+          {/* dev aid */}
+          <span className="text-xs opacity-60 ml-2">
+            {teamMembers.length} total · {getFilteredMembers().length} eligible
+          </span>
+        </label>
         {loadingMembers ? (
           <div className="text-sm text-gray-500">Loading team members...</div>
         ) : (
@@ -437,14 +430,10 @@ export default function CalendarEventForm({
                     checked={isSelected}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        // Use team member role (server authority)
-                        const normalizedRole = member.role === 'member' ? 'player' : 
-                                              member.role === 'creator' ? 'coach' : 
-                                              member.role;
-                        
+                        // Use team_members.role only (server is source of truth)
                         setSelectedParticipants(prev => [...prev, {
                           user_id: member.user_id,
-                          role: normalizedRole as 'player' | 'coach' | 'parent',
+                          role: member.role as 'player' | 'coach' | 'parent',
                           email: member.user.email
                         }]);
                       } else {
@@ -456,9 +445,7 @@ export default function CalendarEventForm({
                   <span className="flex-1 text-sm">{member.user.email}</span>
                   {isSelected && (
                     <span className="text-xs bg-gray-100 px-2 py-1 rounded capitalize">
-                      {member.role === 'member' ? 'player' : 
-                       member.role === 'creator' ? 'coach' : 
-                       member.role}
+                      {member.role}
                     </span>
                   )}
                 </div>
