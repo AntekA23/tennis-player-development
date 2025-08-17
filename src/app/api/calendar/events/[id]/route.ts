@@ -113,6 +113,44 @@ export async function PUT(
       }
     }
 
+    // Tournament player guarantee: ensure at least one player participant
+    let updatedParticipantUserIds = participantUserIds;
+    if (normalizedType === 'tournament' && participantUserIds) {
+      const currentPlayerRoles = await db
+        .select({ user_id: teamMembers.user_id, role: teamMembers.role })
+        .from(teamMembers)
+        .where(and(
+          eq(teamMembers.team_id, teamId),
+          inArray(teamMembers.user_id, participantUserIds)
+        ));
+
+      const currentPlayerCount = currentPlayerRoles.filter((m: any) => normRole(m.role) === 'player').length;
+
+      if (currentPlayerCount === 0) {
+        // No players in participants - check if we can auto-add
+        const teamPlayers = await db.select({ user_id: teamMembers.user_id, role: teamMembers.role })
+          .from(teamMembers)
+          .where(and(
+            eq(teamMembers.team_id, teamId),
+            eq(teamMembers.status, 'accepted')
+          ));
+
+        const players = teamPlayers.filter(member => normRole(member.role) === 'player');
+
+        if (players.length === 1) {
+          // Auto-add the single player
+          updatedParticipantUserIds = [...participantUserIds, players[0].user_id];
+        } else if (players.length > 1) {
+          // Multiple players - require manual selection
+          return NextResponse.json({
+            error: "select_player_required",
+            message: "Tournament requires at least one player participant"
+          }, { status: 400 });
+        }
+        // If players.length === 0, continue (no players on team)
+      }
+    }
+
     // Validate times if provided
     if (start_time && computedEndTime) {
       const start = new Date(start_time);

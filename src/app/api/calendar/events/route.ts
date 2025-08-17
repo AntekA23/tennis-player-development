@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants, participantUserIds, tournamentScope, endTouched } = body;
+    let { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants, participantUserIds, tournamentScope, endTouched } = body;
 
     if (!title || !activity_type || !start_time) {
       return NextResponse.json(
@@ -184,6 +184,41 @@ export async function POST(request: NextRequest) {
           { error: "Invalid participant roles for this event type" },
           { status: 400 }
         );
+      }
+    }
+
+    // Tournament player guarantee: ensure at least one player participant
+    if (normalizedType === 'tournament') {
+      const currentPlayerCount = participantUserIds ? 
+        (await db.select({ user_id: teamMembers.user_id, role: teamMembers.role })
+          .from(teamMembers)
+          .where(and(
+            eq(teamMembers.team_id, parseInt(teamId)),
+            inArray(teamMembers.user_id, participantUserIds)
+          ))).filter(m => normRole(m.role) === 'player').length : 0;
+
+      if (currentPlayerCount === 0) {
+        // No players in participants - check if we can auto-add
+        const teamPlayers = await db.select({ user_id: teamMembers.user_id, role: teamMembers.role })
+          .from(teamMembers)
+          .where(and(
+            eq(teamMembers.team_id, parseInt(teamId)),
+            eq(teamMembers.status, 'accepted')
+          ));
+
+        const players = teamPlayers.filter(member => normRole(member.role) === 'player');
+
+        if (players.length === 1) {
+          // Auto-add the single player
+          participantUserIds = [...(participantUserIds || []), players[0].user_id];
+        } else if (players.length > 1) {
+          // Multiple players - require manual selection
+          return NextResponse.json({
+            error: "select_player_required",
+            message: "Tournament requires at least one player participant"
+          }, { status: 400 });
+        }
+        // If players.length === 0, continue (no players on team)
       }
     }
 
