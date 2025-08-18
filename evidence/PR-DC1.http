@@ -1,0 +1,85 @@
+### PR-DC1 Evidence Tests
+@baseUrl = http://localhost:3000
+@teamId = 1
+@parentId = 1
+@playerId = 2
+@nonTeamId = 99999
+
+### Test 1: Parent in Match → 400
+POST {{baseUrl}}/api/calendar/events
+Content-Type: application/json
+Cookie: teamId={{teamId}}; userId={{parentId}}
+
+{
+  "title": "Test Match",
+  "activity_type": "match",
+  "start_time": "2025-01-17T10:00:00Z",
+  "participants": [{"user_id": {{parentId}}}]
+}
+
+### Test 2: Tournament National → +2d
+POST {{baseUrl}}/api/calendar/events
+Content-Type: application/json
+Cookie: teamId={{teamId}}; userId={{parentId}}
+
+{
+  "title": "National Tournament",
+  "activity_type": "tournament",
+  "tournamentScope": "national",
+  "start_time": "2025-01-17T10:00:00Z",
+  "participants": [{"user_id": {{playerId}}}]
+}
+
+### Test 3: Tournament International-TE → +3d
+POST {{baseUrl}}/api/calendar/events
+Content-Type: application/json
+Cookie: teamId={{teamId}}; userId={{parentId}}
+
+{
+  "title": "International Tournament",
+  "activity_type": "tournament",
+  "tournamentScope": "international_te",
+  "start_time": "2025-01-17T10:00:00Z",
+  "participants": [{"user_id": {{playerId}}}]
+}
+
+### Test 4: Education → +60m
+POST {{baseUrl}}/api/calendar/events
+Content-Type: application/json
+Cookie: teamId={{teamId}}; userId={{parentId}}
+
+{
+  "title": "Tennis Theory",
+  "activity_type": "education",
+  "start_time": "2025-01-17T10:00:00Z",
+  "participants": [
+    {"user_id": {{parentId}}},
+    {"user_id": {{playerId}}}
+  ]
+}
+
+### Test 5: Not-in-team → 400
+POST {{baseUrl}}/api/calendar/events
+Content-Type: application/json
+Cookie: teamId={{teamId}}; userId={{parentId}}
+
+{
+  "title": "Test Practice",
+  "activity_type": "practice",
+  "start_time": "2025-01-17T10:00:00Z",
+  "end_time": "2025-01-17T11:00:00Z",
+  "participants": [{"user_id": {{nonTeamId}}}]
+}
+
+### Test 6: Tournament no players → 400
+POST {{baseUrl}}/api/calendar/events
+Content-Type: application/json
+Cookie: teamId={{teamId}}; userId={{parentId}}
+
+{
+  "title": "Tournament No Players",
+  "activity_type": "tournament",
+  "tournamentScope": "national",
+  "start_time": "2025-01-17T10:00:00Z",
+  "participants": []
+}
