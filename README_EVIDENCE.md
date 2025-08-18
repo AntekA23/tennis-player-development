@@ -193,3 +193,108 @@ wc -l src/lib/domain.ts
 ## Post-Merge Verification
 
 After deployment, re-run the console checks to confirm production behavior matches test environment.
+
+---
+
+# PR-DB1: Database Constraint & Data Quality
+
+## Migration Execution
+
+### 1. Apply Migration
+```sql
+-- Run in Railway Console (copy-paste entire content)
+\i drizzle/20250118_add_uq_event_participant.sql
+```
+
+### 2. Verify Constraint
+```sql
+-- Check constraint was created
+SELECT 
+  conname as constraint_name,
+  contype as constraint_type,
+  pg_get_constraintdef(oid) as definition
+FROM pg_constraint 
+WHERE conname LIKE '%event_participants%unique%' 
+   OR conname LIKE '%event_user_unique%';
+```
+
+## Data Quality Validation
+
+Execute each probe and document results:
+
+### DQ-1: Duplicate Participants
+```sql
+\i dq/1_duplicate_participants.sql
+```
+**Expected**: 0 rows (no duplicates allowed after constraint)
+
+### DQ-2: Role Mismatches  
+```sql
+\i dq/2_role_mismatches.sql
+```
+**Expected**: 0 rows (roles should be synchronized)
+
+### DQ-3: Orphaned Participants
+```sql
+\i dq/3_orphaned_participants.sql  
+```
+**Expected**: 0 rows (all participants must be team members)
+
+### DQ-4: Invalid Tournament Participants
+```sql
+\i dq/4_invalid_tournament_participants.sql
+```
+**Expected**: 0 rows (tournaments must have player participants)
+
+## Evidence Package
+
+Provide screenshots of:
+
+1. **Migration Success**: Railway console showing successful constraint creation
+2. **Constraint Verification**: Query result confirming constraint exists
+3. **DQ Results**: All 4 probe results showing 0 rows returned
+4. **Schema Validation**: TablePlus/Railway UI showing updated table structure
+
+## Testing Constraint Enforcement
+
+After migration, test that duplicate insertion fails:
+
+```sql
+-- This should fail with unique constraint violation
+INSERT INTO event_participants (event_id, user_id, role) 
+SELECT event_id, user_id, role 
+FROM event_participants 
+LIMIT 1;
+```
+
+**Expected**: Error message about unique constraint violation
+
+## Local Development Setup
+
+### 1. Sync Local DB
+```bash
+npx drizzle-kit pull:pg
+```
+
+### 2. Apply Migration Locally
+```bash
+psql $DATABASE_URL -f drizzle/20250118_add_uq_event_participant.sql
+```
+
+### 3. Run Data Quality Checks
+```bash
+for file in dq/*.sql; do
+  echo "=== $file ==="
+  psql $DATABASE_URL -f "$file"
+  echo
+done
+```
+
+## Quality Gates
+
+Before merge, confirm:
+- [ ] Migration applied successfully to production
+- [ ] All 4 DQ probes return 0 rows
+- [ ] Constraint violation test fails as expected  
+- [ ] Schema changes visible in Railway UI
+- [ ] Local database synchronized with production

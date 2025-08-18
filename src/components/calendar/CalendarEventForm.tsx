@@ -2,6 +2,9 @@
 
 import React, { useState } from "react";
 import { useRoleAccess } from "@/contexts/UserContext";
+import { Activity, Role, normType, CREATOR_RULES } from '@/lib/domain';
+import { canCreateActivity, getAllowedActivities } from '@/lib/ui/permissions';
+import ParticipantSelector from './ParticipantSelector';
 
 interface CalendarEventFormProps {
   onSubmit: (data: any) => void;
@@ -60,17 +63,16 @@ function safeDurationMs(startStr: string, endStr: string) {
 interface TeamMember {
   id: number;
   user_id: number;
-  role: string;
+  role: Role;
   status: string;
   user: {
     email: string;
-    role: string; // Add role from users table
   };
 }
 
 interface Participant {
   user_id: number;
-  role: 'player' | 'coach' | 'parent';
+  role: Role;
   email: string;
 }
 
@@ -80,16 +82,18 @@ export default function CalendarEventForm({
   initialData,
 }: CalendarEventFormProps) {
   const { isCoach, isParent, isPlayer, permissions } = useRoleAccess();
+  const [serverError, setServerError] = useState<string | null>(null);
   
-  // Get user from localStorage as fallback
-  const [localUserRole, setLocalUserRole] = React.useState<string | null>(null);
+  // Get user role from server permissions (no fallbacks)
+  const userRole = permissions?.role;
+  
   React.useEffect(() => {
+    if (!userRole) return;
+    
+    // Fetch team members for participant selection
     const userData = localStorage.getItem('user');
     if (userData) {
       const user = JSON.parse(userData);
-      setLocalUserRole(user.role);
-      
-      // Fetch team members for participant selection
       fetch(`/api/teams/details?userId=${user.id}`)
         .then(res => res.json())
         .then(data => {
@@ -97,14 +101,9 @@ export default function CalendarEventForm({
             setTeamMembers(data.team.members);
             
             // Auto-select players for tournaments created by coach/parent
-            if (user.role === 'coach' || user.role === 'parent') {
+            if (userRole === 'coach' || userRole === 'parent') {
               const players = data.team.members.filter((member: any) => {
-                if (member.status !== 'accepted') return false;
-                // Use team_members.role only (server is source of truth)
-                const normalizedRole = member.role === 'member' ? 'player' : 
-                                      member.role === 'creator' ? 'coach' : 
-                                      member.role;
-                return normalizedRole === 'player';
+                return member.status === 'accepted' && member.role === 'player';
               });
               
               const autoSelectedParticipants = players.map((player: any) => ({
@@ -113,10 +112,10 @@ export default function CalendarEventForm({
                 email: player.user.email
               }));
               
-              // Only auto-select for tournaments (check default type)
-              const defaultType = initialData?.activity_type || 
-                                 (user.role === 'parent' ? 'tournament' : 
-                                  user.role === 'player' ? 'sparring_request' : 'practice');
+              // Only auto-select for tournaments
+              // Use first allowed activity for role (inline to avoid dependency)
+              const allowedActivities = getAllowedActivities(userRole);
+              const defaultType = initialData?.activity_type || allowedActivities[0] || 'practice';
               if (defaultType === 'tournament') {
                 setSelectedParticipants(autoSelectedParticipants);
               }
@@ -126,69 +125,18 @@ export default function CalendarEventForm({
         .catch(console.error)
         .finally(() => setLoadingMembers(false));
     }
-  }, [initialData?.activity_type]);
-  
-  // Use fallback if permissions not loaded
-  const isCoachFallback = isCoach || localUserRole === 'coach';
-  const isParentFallback = isParent || localUserRole === 'parent';
-  const isPlayerFallback = isPlayer || localUserRole === 'player';
+  }, [userRole, initialData?.activity_type]);
 
-  type Role = 'player' | 'coach' | 'parent';
+  // Remove local type definitions - use domain contract only
 
-  const normType = (s: string) =>
-    s.trim().toLowerCase()
-     .replace('sparing', 'sparring')
-     .replace('sparring request', 'sparring')
-     .replace('sparring_request', 'sparring');
-
-  const ALLOWED: Record<string, Role[]> = {
-    education: ['parent','player'],
-    practice: ['player','coach'],
-    gym: ['player','coach'],
-    match: ['player'],
-    sparring: ['player'],           // <- single canonical key
-    tournament: ['parent','player','coach'],
-  };
-
-  const allowedRolesFor = (t: string) => ALLOWED[normType(t)] ?? [];
-
-  // Filter team members based on activity type using team_members.role (server authority)
-  const getFilteredMembers = () => {
-    const allowed = new Set(allowedRolesFor(formData.activity_type));
-    const selectable = teamMembers
-      .filter(m => m.status === 'accepted')
-      .filter(m => allowed.has(m.role as Role));
-    return selectable;
-  };
-
-  // Handle activity type change with participant validation using team member roles
+  // Handle activity type change with participant validation
   const handleActivityTypeChange = (newType: string) => {
-    const allowed = new Set(allowedRolesFor(newType));
-    // Find team member roles for selected participants (server authority)
-    const invalidParticipants = selectedParticipants.filter(p => {
-      const teamMember = teamMembers.find(m => m.user_id === p.user_id);
-      if (!teamMember) return true;
-      
-      return !allowed.has(teamMember.role as Role);
-    });
-    
-    if (invalidParticipants.length > 0) {
-      const invalidEmails = invalidParticipants.map(p => p.email).join(', ');
-      if (window.confirm(`These participants aren't allowed for ${newType}: ${invalidEmails}. Remove them?`)) {
-        setSelectedParticipants(prev => prev.filter(p => {
-          const teamMember = teamMembers.find(m => m.user_id === p.user_id);
-          if (!teamMember) return false;
-          
-          return allowed.has(teamMember.role as Role);
-        }));
-      } else {
-        return; // Don't change activity type
-      }
-    }
+    // Clear participants when changing activity type (let user reselect)
+    setSelectedParticipants([]);
     
     // Update activity type and recalculate end time if start time is set
     let updatedData = { ...formData, activity_type: newType };
-    if (formData.start_time) {
+    if (formData.start_time && !endTouched) {
       updatedData.end_time = calculateEndTime(formData.start_time, newType);
     }
     
@@ -217,7 +165,7 @@ export default function CalendarEventForm({
       case 'tournament':
         // Tournament duration handled by server based on scope
         // Client shows preview only - server computes final duration
-        const scopeDays = tournamentScope === 'International-TE' ? 3 : 2;
+        const scopeDays = tournamentScope === 'international_te' ? 3 : 2;
         durationMs = scopeDays * 24 * 60 * 60 * 1000;
         break;
       default:
@@ -231,9 +179,11 @@ export default function CalendarEventForm({
   // Get default activity type based on role
   const getDefaultActivityType = () => {
     if (initialData?.activity_type) return initialData.activity_type;
-    if (isParentFallback && !isCoachFallback) return "tournament";
-    if (isPlayerFallback && !isCoachFallback && !isParentFallback) return "sparring_request";
-    return "practice"; // coach default
+    if (!userRole) return "practice";
+    
+    // Use first allowed activity for role
+    const allowedActivities = getAllowedActivities(userRole);
+    return allowedActivities[0] || "practice";
   };
 
   const [formData, setFormData] = useState({
@@ -250,27 +200,42 @@ export default function CalendarEventForm({
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedParticipants, setSelectedParticipants] = useState<Participant[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
-  const [tournamentScope, setTournamentScope] = useState<'National' | 'International-TE'>('National');
+  const [tournamentScope, setTournamentScope] = useState<'national' | 'international_te'>('national');
   const [endTouched, setEndTouched] = useState(false);
+
+  // Activity type validation using domain contract
+  const normalizedActivity = normType(formData.activity_type) as Activity;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setServerError(null);
     
-    // Convert local datetime strings to UTC ISO for API
-    const submitData = {
-      ...formData,
-      start_time: toIsoUtc(formData.start_time),
-      end_time: formData.activity_type === 'tournament' && !endTouched ? undefined : toIsoUtc(formData.end_time),
-      participants: selectedParticipants,
-      tournamentScope: formData.activity_type === 'tournament' ? tournamentScope : undefined,
-      endTouched: endTouched,
-    };
-    
-    onSubmit(submitData);
+    try {
+      // Convert local datetime strings to UTC ISO for API
+      const submitData = {
+        ...formData,
+        start_time: toIsoUtc(formData.start_time),
+        end_time: (normalizedActivity === 'education' || normalizedActivity === 'tournament') && !endTouched ? undefined : toIsoUtc(formData.end_time),
+        participants: selectedParticipants,
+        tournamentScope: normalizedActivity === 'tournament' ? tournamentScope : undefined,
+        endTouched: endTouched,
+      };
+      
+      await onSubmit(submitData);
+    } catch (error: any) {
+      // Surface exact server error
+      setServerError(error.message || 'Failed to save event');
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg">
+      {serverError && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+          {serverError}
+        </div>
+      )}
+      
       <div>
         <label className="block text-sm font-medium mb-1">Title *</label>
         <input
@@ -300,23 +265,15 @@ export default function CalendarEventForm({
           onChange={(e) => handleActivityTypeChange(e.target.value)}
           className="w-full px-3 py-2 border rounded-md"
         >
-          {isCoachFallback && (
-            <>
-              <option value="practice">Practice</option>
-              <option value="gym">Gym</option>
-              <option value="match">Match</option>
-            </>
-          )}
-          {isParentFallback && (
-            <>
-              <option value="tournament">Tournament</option>
-              <option value="education">Education</option>
-            </>
-          )}
-          {isPlayerFallback && !isCoachFallback && !isParentFallback && (
-            <option value="sparring_request">Sparring Request</option>
-          )}
+          {userRole && getAllowedActivities(userRole).map(activity => (
+            <option key={activity} value={activity}>
+              {activity === 'sparring' ? 'Sparring' : activity.charAt(0).toUpperCase() + activity.slice(1)}
+            </option>
+          ))}
         </select>
+        {!userRole && (
+          <div className="text-sm text-gray-500 mt-1">Loading permissions...</div>
+        )}
       </div>
 
       {/* Tournament Scope - Only show for tournaments */}
@@ -327,10 +284,10 @@ export default function CalendarEventForm({
             required
             value={tournamentScope}
             onChange={(e) => {
-              setTournamentScope(e.target.value as 'National' | 'International-TE');
+              setTournamentScope(e.target.value as 'national' | 'international_te');
               // Auto-update end time if not manually touched
               if (!endTouched && formData.start_time) {
-                const days = e.target.value === 'National' ? 2 : 3;
+                const days = e.target.value === 'national' ? 2 : 3;
                 const start = parseLocal(formData.start_time);
                 const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
                 setFormData({ ...formData, end_time: formatLocal(end) });
@@ -338,8 +295,8 @@ export default function CalendarEventForm({
             }}
             className="w-full px-3 py-2 border rounded-md"
           >
-            <option value="National">National</option>
-            <option value="International-TE">International (Tennis Europe)</option>
+            <option value="national">National</option>
+            <option value="international_te">International-TE</option>
           </select>
         </div>
       )}
@@ -368,7 +325,14 @@ export default function CalendarEventForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">End Time *</label>
+          <label className="block text-sm font-medium mb-1">
+            End Time *
+            {!endTouched && (normalizedActivity === 'education' || normalizedActivity === 'tournament') && (
+              <span className="text-xs text-gray-500 ml-2">
+                (auto: {normalizedActivity === 'education' ? '+60m' : `+${tournamentScope === 'international_te' ? '3d' : '2d'} by scope`})
+              </span>
+            )}
+          </label>
           <input
             type="datetime-local"
             required
@@ -409,55 +373,14 @@ export default function CalendarEventForm({
 
       {/* Participants Section */}
       <div>
-        <label className="block text-sm font-medium mb-2">
-          Participants 
-          {/* dev aid */}
-          <span className="text-xs opacity-60 ml-2">
-            {teamMembers.length} total · {getFilteredMembers().length} eligible
-          </span>
-        </label>
-        {loadingMembers ? (
-          <div className="text-sm text-gray-500">Loading team members...</div>
-        ) : (
-          <div className="space-y-2">
-            {getFilteredMembers().map((member) => {
-              const isSelected = selectedParticipants.some(p => p.user_id === member.user_id);
-              
-              return (
-                <div key={member.user_id} className="flex items-center gap-3 p-2 border rounded">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        // Use team_members.role only (server is source of truth)
-                        setSelectedParticipants(prev => [...prev, {
-                          user_id: member.user_id,
-                          role: member.role as 'player' | 'coach' | 'parent',
-                          email: member.user.email
-                        }]);
-                      } else {
-                        setSelectedParticipants(prev => prev.filter(p => p.user_id !== member.user_id));
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <span className="flex-1 text-sm">{member.user.email}</span>
-                  {isSelected && (
-                    <span className="text-xs bg-gray-100 px-2 py-1 rounded capitalize">
-                      {member.role}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-            {getFilteredMembers().length === 0 && (
-              <div className="text-sm text-gray-500">
-                No team members with suitable roles for {formData.activity_type} events
-              </div>
-            )}
-          </div>
-        )}
+        <label className="block text-sm font-medium mb-2">Participants</label>
+        <ParticipantSelector
+          activityType={formData.activity_type}
+          teamMembers={teamMembers}
+          selectedParticipants={selectedParticipants}
+          onParticipantsChange={setSelectedParticipants}
+          loading={loadingMembers}
+        />
       </div>
 
       <div className="flex items-center gap-4">

@@ -11,6 +11,7 @@ import SparringRequestForm from "./SparringRequestForm";
 import SparringQuickAddModal from "./SparringQuickAddModal";
 import TrainingLogForm from "./TrainingLogForm";
 import { useRoleAccess } from "@/contexts/UserContext";
+import { Role, getAllowedActivities, canCreateActivity } from '@/lib/ui/permissions';
 
 interface CalendarEvent {
   id: number;
@@ -58,6 +59,11 @@ const isMobileDevice = () => {
 };
 
 export default function CalendarView() {
+  // UI1 bundle probe
+  if (typeof window !== 'undefined') {
+    console.log('UI1 bundle loaded - PR-UI1 with canonical scope + sparring passthrough');
+  }
+  
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,29 +77,18 @@ export default function CalendarView() {
   const [showTrainingLogForm, setShowTrainingLogForm] = useState(false);
   const [trainingLogEvent, setTrainingLogEvent] = useState<CalendarEvent | null>(null);
   
-  // Get user from localStorage as fallback
-  const [localUserRole, setLocalUserRole] = useState<string | null>(null);
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      setLocalUserRole(user.role);
-    }
-  }, []);
-  
-  // Get user role and permissions
+  // Get user role and permissions (no fallbacks)
   const { 
     isCoach, 
     isParent, 
     isPlayer, 
     showCreateButton, 
     showEditControls,
-    canModifyEvent 
+    canModifyEvent,
+    permissions
   } = useRoleAccess();
   
-  // Use fallback if permissions not loaded
-  const isCoachFallback = isCoach || localUserRole === 'coach';
-  const isParentFallback = isParent || localUserRole === 'parent';
+  const userRole = permissions?.role;
   
   // Simple same-team permission check (SONIQ spec)
   const canEditDelete = true; // Simplified: any team member can edit/delete (backend enforces team validation)
@@ -114,7 +109,7 @@ export default function CalendarView() {
     if (saved) return saved;
     
     // NEW: Coaches default to week view (MobileCoachView/List), others to calendar
-    if (isCoach) {
+    if (userRole === 'coach') {
       return 'list'; // MobileCoachView provides week view for coaches
     }
     
@@ -488,14 +483,16 @@ export default function CalendarView() {
       <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold">
-            {isCoachFallback && "Team Calendar"}
-            {isParentFallback && !isCoachFallback && "📅 My Child's Schedule"}
-            {(isPlayer || (!isCoachFallback && !isParentFallback)) && "📅 My Tennis Schedule"}
+            {userRole === 'coach' && "Team Calendar"}
+            {userRole === 'parent' && "📅 My Child's Schedule"}
+            {userRole === 'player' && "📅 My Tennis Schedule"}
+            {!userRole && "📅 Calendar"}
           </h2>
-          {(isParent || isPlayer) && (
+          {userRole && (
             <p className="text-sm text-gray-600 mt-1">
-              {isParent && "View-only schedule with RSVP options"}
-              {isPlayer && "Your personal training and match schedule"}
+              {userRole === 'parent' && "View-only schedule with RSVP options"}
+              {userRole === 'player' && "Your personal training and match schedule"}
+              {userRole === 'coach' && "Manage team events and schedules"}
             </p>
           )}
         </div>
@@ -528,7 +525,7 @@ export default function CalendarView() {
           }
           
           {/* Role-based action buttons */}
-          {(isCoachFallback || isParentFallback || showCreateButton) && (
+          {userRole && showCreateButton && (
             <button
               onClick={() => {
                 setEditingEvent(null);
@@ -540,7 +537,7 @@ export default function CalendarView() {
             </button>
           )}
           
-          {isParent && (
+          {userRole === 'parent' && (
             <button
               onClick={() => setShowParentRequestForm(true)}
               className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
@@ -550,20 +547,22 @@ export default function CalendarView() {
           )}
           
           
-          {/* Quick Add Sparring */}
-          <button
-            onClick={() => {
-              // TODO: Use proper date source from calendar view when available
-              const today = new Date();
-              const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
-              const timeStr = '18:00'; // Default to 6 PM
-              setPrefill({ date: dateStr, time: timeStr });
-              setQuickAddOpen(true);
-            }}
-            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-          >
-            Quick Add Sparring
-          </button>
+          {/* Quick Add Sparring - Only for users who can create sparring */}
+          {userRole && canCreateActivity(userRole, 'sparring') && (
+            <button
+              onClick={() => {
+                // TODO: Use proper date source from calendar view when available
+                const today = new Date();
+                const dateStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+                const timeStr = '18:00'; // Default to 6 PM
+                setPrefill({ date: dateStr, time: timeStr });
+                setQuickAddOpen(true);
+              }}
+              className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+            >
+              Quick Add Sparring
+            </button>
+          )}
         </div>
       </div>
 
