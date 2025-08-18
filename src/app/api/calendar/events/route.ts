@@ -4,31 +4,7 @@ import { calendarEvents, eventParticipants, teamMembers } from "@/db/schema";
 import { eq, and, gte, lte, asc, inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { canCreateEvent, type ActivityType } from "@/lib/permissions";
-
-// Type normalizer: collapse synonyms/typos
-const normType = (s: string) => s.trim().toLowerCase()
-  .replace('sparing', 'sparring')
-  .replace('sparring request', 'sparring');
-
-// Role normalizer: defensive mapping for any legacy values
-const normRole = (role: string) => {
-  switch (role) {
-    case 'member': return 'player';
-    case 'creator': return 'coach';
-    default: return role;
-  }
-};
-
-// Helper: validate participant roles for event type
-const validateParticipantRoles = (eventType: string, roles: string[]): boolean => {
-  const t = eventType.toLowerCase();
-  return (
-    (t === 'education' && roles.every(r => r === 'parent' || r === 'player')) ||
-    ((t === 'practice' || t === 'gym') && roles.every(r => r === 'player' || r === 'coach')) ||
-    ((t === 'match' || t === 'sparring_request') && roles.every(r => r === 'player')) ||
-    (t === 'tournament' && roles.every(r => r === 'parent' || r === 'player' || r === 'coach'))
-  );
-};
+import { normType, PARTICIPANT_RULES, type Activity, type Role } from '@/lib/domain';
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,8 +64,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    let { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants, participantUserIds, tournamentScope, endTouched } = body;
+    const incoming = await request.json();
+    let { title, description, activity_type, start_time, end_time, location, is_recurring, recurrence_pattern, participants, participantUserIds, tournamentScope, endTouched } = incoming;
 
     if (!title || !activity_type || !start_time) {
       return NextResponse.json(
@@ -98,13 +74,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Normalize activity type using normType() function
-    const normalized = normType(activity_type);
-    const normalizedType = (normalized === 'sparring' ? 'sparring_request' : normalized) as any;
+    // Normalize type
+    const type = normType(activity_type) as Activity;
+    // Map sparring back to sparring_request for database storage
+    const dbActivityType = type === 'sparring' ? 'sparring_request' : type;
 
     // Check role-based creation permission
-    const createPermission = await canCreateEvent(userId, teamId, activity_type as ActivityType);
-    console.log('[API] Create event permission check:', { userId, teamId, activity_type, createPermission });
+    const createPermission = await canCreateEvent(userId, teamId, dbActivityType as ActivityType);
+    console.log('[API] Create event permission check:', { userId, teamId, activity_type: dbActivityType, createPermission });
     if (!createPermission.allowed) {
       return NextResponse.json(
         { error: createPermission.reason || "Not authorized to create this event type" },
@@ -112,121 +89,86 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const validActivityTypes = ['practice', 'gym', 'match', 'tournament', 'education', 'sparring_request'];
-    if (!validActivityTypes.includes(normalizedType)) {
-      return NextResponse.json(
-        { error: "Invalid activity type" },
-        { status: 400 }
-      );
-    }
 
-    // Compute end time based on activity type if not manually set
-    let computedEndTime = end_time;
-    if (!endTouched) {
-      if (normalizedType === 'education') {
-        // Education: +60 minutes
-        const startDate = new Date(start_time);
-        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-        computedEndTime = endDate.toISOString();
-      } else if (normalizedType === 'tournament') {
-        // Tournament: +2d/+3d based on scope
-        if (!tournamentScope) {
-          return NextResponse.json(
-            { error: "Tournament scope required (National or International-TE)" },
-            { status: 400 }
-          );
+    // End authority
+    let endAt = end_time;
+    const endTouchedFlag = endTouched === true;
+    
+    if (!endTouchedFlag) {
+      if (type === 'education') {
+        endAt = new Date(new Date(start_time).getTime() + 60*60*1000).toISOString();
+      } else if (type === 'tournament') {
+        const scope = (tournamentScope as string)?.toLowerCase();
+        if (!['national','international_te'].includes(scope ?? '')) {
+          return NextResponse.json({ error:'missing_tournament_scope' }, { status:400 });
         }
-        const startDate = new Date(start_time);
-        const days = tournamentScope === 'National' ? 2 : 3;
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + days);
-        computedEndTime = endDate.toISOString();
-      } else if (!end_time) {
-        return NextResponse.json(
-          { error: "End time required" },
-          { status: 400 }
-        );
+        const days = scope === 'national' ? 2 : 3;
+        endAt = new Date(new Date(start_time).getTime() + days*24*60*60*1000).toISOString();
       }
     }
+    // For other types, do not error if endAt is missing when !endTouched; persist as-is if DB allows.
 
-    // Validate participant roles if provided via participantUserIds
-    if (participantUserIds && participantUserIds.length > 0) {
-      const memberRoles = await db
+    // Enforce participant roles using team_members.role only
+    const participantIds: number[] = (participants ?? []).map((p:any) => p.user_id)
+      .concat(participantUserIds ?? []);
+    
+    const uniqueIds = Array.from(new Set(participantIds));
+    
+    if (uniqueIds.length > 0) {
+      // Fetch team member roles for those ids (server authority)
+      const members = await db
         .select({ user_id: teamMembers.user_id, role: teamMembers.role })
         .from(teamMembers)
         .where(and(
           eq(teamMembers.team_id, parseInt(teamId)),
-          inArray(teamMembers.user_id, participantUserIds)
+          inArray(teamMembers.user_id, uniqueIds)
         ));
-
-      // Apply defensive role normalization and validate
-      const normalizedRoles = memberRoles.map(m => normRole(m.role));
-      const isValid = (
-        (normalized === 'education' && normalizedRoles.every(r => r === 'parent' || r === 'player')) ||
-        (['practice', 'gym'].includes(normalized) && normalizedRoles.every(r => r === 'player' || r === 'coach')) ||
-        (['match', 'sparring'].includes(normalized) && normalizedRoles.every(r => r === 'player')) ||
-        (normalized === 'tournament' && normalizedRoles.every(r => ['parent', 'player', 'coach'].includes(r)))
-      );
-
-      if (!isValid) {
-        const invalidRoles = normalizedRoles.filter(r => {
-          if (normalized === 'education') return !['parent', 'player'].includes(r);
-          if (['practice', 'gym'].includes(normalized)) return !['player', 'coach'].includes(r);
-          if (['match', 'sparring'].includes(normalized)) return r !== 'player';
-          if (normalized === 'tournament') return !['parent', 'player', 'coach'].includes(r);
-          return true;
-        });
-        return NextResponse.json({ 
-          error: "invalid_participants", 
-          invalid: invalidRoles 
-        }, { status: 400 });
+      
+      // Check if all participants are in the team
+      if (members.length !== uniqueIds.length) {
+        return NextResponse.json({ error: 'participant_not_in_team' }, { status: 400 });
       }
-    }
-
-    // Validate participant roles if provided via participants array (legacy)
-    if (participants && participants.length > 0) {
-      const participantRoles = participants.map((p: any) => p.role);
-      const isValid = validateParticipantRoles(normalizedType, participantRoles);
-      if (!isValid) {
-        return NextResponse.json(
-          { error: "Invalid participant roles for this event type" },
-          { status: 400 }
-        );
+      
+      const allowed = new Set(PARTICIPANT_RULES[type]);
+      const invalid = members.filter(m => !allowed.has(m.role as Role));
+      
+      if (invalid.length > 0) {
+        return NextResponse.json({ error: 'invalid_participants' }, { status: 400 });
       }
     }
 
     // Tournament player guarantee: ensure at least one player participant
-    if (normalizedType === 'tournament') {
-      const currentPlayerCount = participantUserIds ? 
+    if (type === 'tournament') {
+      // Count players in provided participants
+      const currentPlayerCount = uniqueIds.length > 0 ? 
         (await db.select({ user_id: teamMembers.user_id, role: teamMembers.role })
           .from(teamMembers)
           .where(and(
             eq(teamMembers.team_id, parseInt(teamId)),
-            inArray(teamMembers.user_id, participantUserIds)
-          ))).filter(m => normRole(m.role) === 'player').length : 0;
+            inArray(teamMembers.user_id, uniqueIds)
+          ))).filter(m => m.role === 'player').length : 0;
 
       if (currentPlayerCount === 0) {
         // No players in participants - check if we can auto-add
-        const teamPlayers = await db.select({ user_id: teamMembers.user_id, role: teamMembers.role })
+        const teamPlayers = await db.select({ user_id: teamMembers.user_id })
           .from(teamMembers)
           .where(and(
             eq(teamMembers.team_id, parseInt(teamId)),
+            eq(teamMembers.role, 'player'),
             eq(teamMembers.status, 'accepted')
           ));
 
-        const players = teamPlayers.filter(member => normRole(member.role) === 'player');
-
-        if (players.length === 1) {
+        if (teamPlayers.length === 1) {
           // Auto-add the single player
-          participantUserIds = [...(participantUserIds || []), players[0].user_id];
-        } else if (players.length > 1) {
+          uniqueIds.push(teamPlayers[0].user_id);
+        } else if (teamPlayers.length > 1) {
           // Multiple players - require manual selection
           return NextResponse.json({
             error: "select_player_required",
             message: "Tournament requires at least one player participant"
           }, { status: 400 });
         }
-        // If players.length === 0, continue (no players on team)
+        // If teamPlayers.length === 0, continue (no players on team)
       }
     }
 
@@ -235,11 +177,11 @@ export async function POST(request: NextRequest) {
       team_id: parseInt(teamId),
       created_by: parseInt(userId),
       title,
-      activity_type: normalizedType,
+      activity_type: dbActivityType,
       start_time,
-      end_time: computedEndTime,
+      end_time: endAt,
       start_date: new Date(start_time),
-      end_date: new Date(computedEndTime)
+      end_date: new Date(endAt)
     });
 
     const [newEvent] = await db.insert(calendarEvents).values({
@@ -247,42 +189,29 @@ export async function POST(request: NextRequest) {
       created_by: parseInt(userId),
       title,
       description: description || null,
-      activity_type: normalizedType,
+      activity_type: dbActivityType,
       start_time: new Date(start_time),
-      end_time: new Date(computedEndTime),
+      end_time: new Date(endAt),
       location: location || null,
       is_recurring: is_recurring || false,
       recurrence_pattern: recurrence_pattern || null,
       original_event_id: null, // Will be set when cloning
     }).returning();
 
-    // Add participants if provided via participantUserIds (preferred method)
-    if (participantUserIds && Array.isArray(participantUserIds) && participantUserIds.length > 0) {
+    // Add participants if provided
+    if (uniqueIds && uniqueIds.length > 0) {
       const memberRoles = await db
         .select({ user_id: teamMembers.user_id, role: teamMembers.role })
         .from(teamMembers)
         .where(and(
           eq(teamMembers.team_id, parseInt(teamId)),
-          inArray(teamMembers.user_id, participantUserIds)
+          inArray(teamMembers.user_id, uniqueIds)
         ));
 
       const participantValues = memberRoles.map(m => ({
         event_id: newEvent.id,
         user_id: m.user_id,
         role: m.role === 'coach' ? 'coach' : 'player', // Map team role to participant role
-        status: 'confirmed',
-        created_at: new Date(),
-        updated_at: new Date(),
-      }));
-
-      await db.insert(eventParticipants).values(participantValues);
-    }
-    // Add participants if provided via participants array (legacy method)
-    else if (participants && Array.isArray(participants) && participants.length > 0) {
-      const participantValues = participants.map((p: any) => ({
-        event_id: newEvent.id,
-        user_id: p.user_id,
-        role: p.role || 'player',
         status: 'confirmed',
         created_at: new Date(),
         updated_at: new Date(),

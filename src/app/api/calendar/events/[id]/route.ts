@@ -1,22 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { db } from "@/db";
-import { calendarEvents, teamMembers } from "@/db/schema";
+import { calendarEvents, teamMembers, eventParticipants } from "@/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
-
-// Type normalizer: collapse synonyms/typos
-const normType = (s: string) => s.trim().toLowerCase()
-  .replace('sparing', 'sparring')
-  .replace('sparring request', 'sparring');
-
-// Role normalizer: defensive mapping for any legacy values
-const normRole = (role: string) => {
-  switch (role) {
-    case 'member': return 'player';
-    case 'creator': return 'coach';
-    default: return role;
-  }
-};
+import { normType, PARTICIPANT_RULES, type Activity, type Role } from '@/lib/domain';
 
 export async function PUT(
   req: NextRequest,
@@ -50,105 +37,90 @@ export async function PUT(
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    const body = await req.json();
-    const { title, description, location, start_time, end_time, type, participantUserIds, tournamentScope, endTouched } = body;
+    const incoming = await req.json();
+    const { title, description, location, start_time, end_time, activity_type, type, participants, participantUserIds, tournamentScope, endTouched } = incoming;
 
+    // Normalize type
+    const normalizedType = normType(activity_type ?? type ?? existingEvent.activity_type) as Activity;
+    
+    // Map sparring back to sparring_request for database storage
+    const dbActivityType = normalizedType === 'sparring' ? 'sparring_request' : normalizedType;
+    
     let computedEndTime = end_time;
-    let normalizedType = existingEvent.activity_type;
 
-    // Type normalization and validation
-    if (type) {
-      const normalized = normType(type);
-      const validTypes = ['education', 'practice', 'gym', 'match', 'sparring', 'tournament'];
-      if (!validTypes.includes(normalized)) {
-        return NextResponse.json({ error: "Invalid activity type" }, { status: 400 });
+    // End authority
+    const endTouchedFlag = endTouched === true;
+    
+    if (!endTouchedFlag) {
+      if (normalizedType === 'education' && (start_time || existingEvent.start_time)) {
+        const startAt = new Date(start_time || existingEvent.start_time);
+        computedEndTime = new Date(startAt.getTime() + 60*60*1000).toISOString();
       }
-      // Map sparring back to sparring_request for database
-      normalizedType = normalized === 'sparring' ? 'sparring_request' : normalized as any;
-    }
-
-    // Server duration authority: compute when !endTouched
-    if (endTouched !== true) {
-      if (normalizedType === 'education' && start_time) {
-        // Education: +60 minutes
-        const startDate = new Date(start_time);
-        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-        computedEndTime = endDate.toISOString();
-      } else if (normalizedType === 'tournament') {
-        // Tournament: +2d/+3d based on scope
-        if (!tournamentScope || !['National', 'International-TE'].includes(tournamentScope)) {
-          return NextResponse.json({ error: "missing_tournament_scope" }, { status: 400 });
+      if (normalizedType === 'tournament') {
+        const scope = (tournamentScope as string)?.toLowerCase();
+        if (!scope || !['national', 'international_te'].includes(scope)) {
+          return NextResponse.json({ error: 'missing_tournament_scope' }, { status: 400 });
         }
-        const startDate = new Date(start_time || existingEvent.start_time);
-        const days = tournamentScope === 'National' ? 2 : 3;
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + days);
-        computedEndTime = endDate.toISOString();
+        const startAt = new Date(start_time || existingEvent.start_time);
+        const days = scope === 'national' ? 2 : 3;
+        computedEndTime = new Date(startAt.getTime() + days*24*60*60*1000).toISOString();
       }
     }
 
-    // Validate participant roles if provided
-    if (participantUserIds && participantUserIds.length > 0) {
-      const memberRoles = await db
+    // Enforce participant roles using team_members.role only
+    const participantIds: number[] = (participants ?? []).map((p:any) => p.user_id)
+      .concat(participantUserIds ?? []);
+    
+    const uniqueIds = Array.from(new Set(participantIds));
+    
+    if (uniqueIds.length > 0) {
+      // Fetch team member roles for those ids (server authority)
+      const members = await db
         .select({ user_id: teamMembers.user_id, role: teamMembers.role })
         .from(teamMembers)
         .where(and(
           eq(teamMembers.team_id, teamId),
-          inArray(teamMembers.user_id, participantUserIds)
+          inArray(teamMembers.user_id, uniqueIds)
         ));
-
-      // Apply defensive role normalization and validate
-      const normalizedRoles = memberRoles.map(m => normRole(m.role));
-      const isValid = (
-        (normalizedType === 'education' && normalizedRoles.every(r => r === 'parent' || r === 'player')) ||
-        (['practice', 'gym'].includes(normalizedType) && normalizedRoles.every(r => r === 'player' || r === 'coach')) ||
-        (['match', 'sparring'].includes(normalizedType) && normalizedRoles.every(r => r === 'player')) ||
-        (normalizedType === 'tournament' && normalizedRoles.every(r => ['parent', 'player', 'coach'].includes(r)))
-      );
-
-      if (!isValid) {
-        const invalidRoles = normalizedRoles.filter(r => {
-          if (normalizedType === 'education') return !['parent', 'player'].includes(r);
-          if (['practice', 'gym'].includes(normalizedType)) return !['player', 'coach'].includes(r);
-          if (['match', 'sparring'].includes(normalizedType)) return r !== 'player';
-          if (normalizedType === 'tournament') return !['parent', 'player', 'coach'].includes(r);
-          return true;
-        });
-        return NextResponse.json({ 
-          error: "invalid_participants", 
-          invalid: invalidRoles 
-        }, { status: 400 });
+      
+      // Check if all participants are in the team
+      if (members.length !== uniqueIds.length) {
+        return NextResponse.json({ error: 'participant_not_in_team' }, { status: 400 });
+      }
+      
+      const allowed = new Set(PARTICIPANT_RULES[normalizedType]);
+      const invalid = members.filter(m => !allowed.has(m.role as Role));
+      
+      if (invalid.length > 0) {
+        return NextResponse.json({ error: 'invalid_participants' }, { status: 400 });
       }
     }
 
     // Tournament player guarantee: ensure at least one player participant
-    let updatedParticipantUserIds = participantUserIds;
-    if (normalizedType === 'tournament' && participantUserIds) {
-      const currentPlayerRoles = await db
-        .select({ user_id: teamMembers.user_id, role: teamMembers.role })
-        .from(teamMembers)
-        .where(and(
-          eq(teamMembers.team_id, teamId),
-          inArray(teamMembers.user_id, participantUserIds)
-        ));
-
-      const currentPlayerCount = currentPlayerRoles.filter((m: any) => normRole(m.role) === 'player').length;
-
-      if (currentPlayerCount === 0) {
-        // No players in participants - check if we can auto-add
-        const teamPlayers = await db.select({ user_id: teamMembers.user_id, role: teamMembers.role })
+    if (normalizedType === 'tournament') {
+      // Count players in provided participants
+      const currentPlayerCount = uniqueIds.length > 0 ?
+        (await db.select({ user_id: teamMembers.user_id, role: teamMembers.role })
           .from(teamMembers)
           .where(and(
             eq(teamMembers.team_id, teamId),
+            inArray(teamMembers.user_id, uniqueIds)
+          ))).filter((m: any) => m.role === 'player').length : 0;
+
+      if (currentPlayerCount === 0) {
+        // No players in participants - check if we can auto-add
+        const teamPlayers = await db.select({ user_id: teamMembers.user_id })
+          .from(teamMembers)
+          .where(and(
+            eq(teamMembers.team_id, teamId),
+            eq(teamMembers.role, 'player'),
             eq(teamMembers.status, 'accepted')
           ));
 
-        const players = teamPlayers.filter(member => normRole(member.role) === 'player');
-
-        if (players.length === 1) {
+        if (teamPlayers.length === 1) {
           // Auto-add the single player
-          updatedParticipantUserIds = [...participantUserIds, players[0].user_id];
-        } else if (players.length > 1) {
+          uniqueIds.push(teamPlayers[0].user_id);
+        } else if (teamPlayers.length > 1) {
           // Multiple players - require manual selection
           return NextResponse.json({
             error: "select_player_required",
@@ -175,7 +147,7 @@ export async function PUT(
     if (location !== undefined) updates.location = location;
     if (start_time) updates.start_time = new Date(start_time);
     if (computedEndTime) updates.end_time = new Date(computedEndTime);
-    if (normalizedType !== existingEvent.activity_type) updates.activity_type = normalizedType;
+    if (dbActivityType !== existingEvent.activity_type) updates.activity_type = dbActivityType;
 
     const [updatedEvent] = await db
       .update(calendarEvents)

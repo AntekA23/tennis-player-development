@@ -3,20 +3,7 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { trainingSessions, calendarEvents, eventParticipants } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-
-// Type normalizer: collapse synonyms/typos
-const normType = (s: string) => s.trim().toLowerCase()
-  .replace('sparing', 'sparring')
-  .replace('sparring request', 'sparring');
-
-// Role normalizer: defensive mapping for any legacy values  
-const normRole = (role: string) => {
-  switch (role) {
-    case 'member': return 'player';
-    case 'creator': return 'coach';
-    default: return role;
-  }
-};
+import { normType } from '@/lib/domain';
 
 export async function POST(
   request: NextRequest,
@@ -47,22 +34,18 @@ export async function POST(
       );
     }
 
-    // Map UI values to DB values (attended→present, missed→absent, late→late)
-    const mapStatus = (v: string) => 
-      v === 'attended' ? 'present' : 
-      v === 'missed' ? 'absent' : 
-      v === 'late' ? 'late' : v;
-    
-    const mappedStatus = mapStatus(attendance_status);
-
-    // Validate status: accept original values (attended/missed/late) or mapped values (present/absent/late)
-    const validInputStatuses = ['attended', 'missed', 'late', 'present', 'absent'];
-    if (!validInputStatuses.includes(attendance_status)) {
-      return NextResponse.json(
-        { error: "Invalid attendance_status. Must be: attended, missed, or late" },
-        { status: 400 }
-      );
+    // Explicit mapping: attended→present, missed→absent, late→late
+    const map: Record<string,'present'|'absent'|'late'> = {
+      attended: 'present',
+      missed: 'absent',
+      late: 'late',
+    };
+    const status = map[(attendance_status ?? '').toLowerCase()];
+    if (!status) {
+      return NextResponse.json({ error: 'invalid_status' }, { status: 400 });
     }
+    
+    const mappedStatus = status;
 
     // Validate performance_rating if provided
     if (performance_rating !== undefined && (performance_rating < 1 || performance_rating > 10)) {
